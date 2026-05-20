@@ -1,4 +1,43 @@
 {
-  "name": "parapo",
-  "slug": "parapo"
+  "expo": {
+    "name": "PARAPO",
+    "slug": "parapo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo_5-removebg.png",
+    "scheme": "parapo",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.parapo.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo_5-removebg.png",
+        "backgroundColor": "#0a0a0a"
+      },
+      "package": "com.parapo.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/logo_5-removebg.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0a0a0a",
+          "image": "./assets/logo_5-removebg.png",
+          "imageWidth": 120
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
 }

@@ -1,22 +1,41 @@
-plugins {
-  id 'com.android.library'
-  id 'expo-module-gradle-plugin'
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    ext {
+        buildToolsVersion = findProperty('android.buildToolsVersion') ?: '35.0.0'
+        minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '24')
+        compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '35')
+        targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '34')
+        kotlinVersion = findProperty('android.kotlinVersion') ?: '1.9.25'
+
+        ndkVersion = "26.1.10909125"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath('com.android.tools.build:gradle')
+        classpath('com.facebook.react:react-native-gradle-plugin')
+        classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+    }
 }
 
-group = 'expo.modules.router'
-version = '55.0.15'
+apply plugin: "com.facebook.react.rootproject"
 
-android {
-  namespace "expo.modules.router"
-  defaultConfig {
-    versionCode 1
-    versionName "55.0.15"
-  }
-  lintOptions {
-    abortOnError false
-  }
-}
+allprojects {
+    repositories {
+        maven {
+            // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+            url(new File(['node', '--print', "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim(), '../android'))
+        }
+        maven {
+            // Android JSC is installed from npm
+            url(new File(['node', '--print', "require.resolve('jsc-android/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim(), '../dist'))
+        }
 
-dependencies {
-  implementation 'com.google.android.material:material:1.13.0'
+        google()
+        mavenCentral()
+        maven { url 'https://www.jitpack.io' }
+    }
 }

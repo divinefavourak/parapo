@@ -1,0 +1,66 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+
+@layer theme {
+  @theme {
+    /* App background scale */
+    --color-bg: #0a0a0a;
+    --color-elevated: #121212;
+    --color-surface: #201f1f;
+    --color-muted: #2a2a2a;
+    --color-subtle: #353534;
+
+    /* Text */
+    --color-content: #e5e2e1;
+    --color-content-2: #c2c6d6;
+    --color-content-3: #8c909f;
+    --color-content-4: #424754;
+
+    /* Brand blue */
+    --color-brand: #adc6ff;
+    --color-brand-dark: #4d8eff;
+    --color-brand-deep: #002e6a;
+    --color-brand-deeper: #00285d;
+
+    /* Accent purple */
+    --color-purple: #a078ff;
+    --color-purple-light: #d0bcff;
+
+    /* Accent green */
+    --color-green: #4edea3;
+    --color-green-dark: #00a572;
+
+    /* Accent red */
+    --color-red: #ffb4ab;
+    --color-red-dark: #93000a;
+
+    /* Borders */
+    --color-edge: rgba(255, 255, 255, 0.1);
+    --color-edge-faint: rgba(255, 255, 255, 0.05);
+    --color-edge-strong: rgba(255, 255, 255, 0.2);
+
+    /* Overlays */
+    --color-overlay-blue: rgba(173, 198, 255, 0.1);
+    --color-overlay-blue-strong: rgba(173, 198, 255, 0.2);
+    --color-overlay-green: rgba(78, 222, 163, 0.1);
+    --color-overlay-green-strong: rgba(78, 222, 163, 0.2);
+    --color-overlay-red: rgba(255, 180, 171, 0.1);
+    --color-overlay-red-strong: rgba(255, 180, 171, 0.2);
+    --color-overlay-purple: rgba(160, 120, 255, 0.1);
+  }
+}
+
+@media android {
+  :root {
+    --font-sans: normal;
+    --font-mono: monospace;
+  }
+}
+
+@media ios {
+  :root {
+    --font-sans: system-ui;
+    --font-mono: ui-monospace;
+  }
+}
