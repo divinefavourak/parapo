@@ -1,16 +1,19 @@
 import React from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Colors } from '../../src/constants/Colors';
 import { Typography } from '../../src/constants/Typography';
 import { Layout } from '../../src/constants/Spacing';
+import { useAuthStore } from '../../src/store/authStore';
+import { useFocusStore } from '../../src/store/focusStore';
 
 const SETTINGS_SECTIONS = [
   {
     title: 'Account',
     items: [
       { icon: '◉', label: 'Profile Settings', sublabel: 'Name, photo, contact info' },
-      { icon: '⚡', label: 'Organization', sublabel: 'Student Council President' },
+      { icon: '⚡', label: 'Organization', sublabel: 'Student council & team' },
       { icon: '🔔', label: 'Notifications', sublabel: 'Alerts & reminders' },
     ],
   },
@@ -32,8 +35,36 @@ const SETTINGS_SECTIONS = [
   },
 ];
 
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase();
+}
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user, logout } = useAuthStore();
+  const { stats } = useFocusStore();
+
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+        },
+      },
+    ]);
+  };
+
+  const initials = user?.full_name ? getInitials(user.full_name) : 'U';
+  const focusHours = Math.round(stats.todayMinutes / 60 * 10) / 10;
 
   return (
     <View style={styles.container}>
@@ -44,18 +75,22 @@ export default function ProfileScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Back button */}
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+
         {/* Profile hero */}
         <View style={styles.profileHero}>
           <View style={styles.avatarLarge}>
-            <Image
-              source={require('../../assets/logo_5-removebg.png')}
-              style={styles.avatarImage}
-              resizeMode="contain"
-            />
+            <Text style={styles.avatarInitials}>{initials}</Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Student Commander</Text>
-            <Text style={styles.profileRole}>Student Council President</Text>
+            <Text style={styles.profileName}>{user?.full_name || 'User'}</Text>
+            <Text style={styles.profileRole}>{user?.role || 'Student Leader'}</Text>
+            {user?.organization ? (
+              <Text style={styles.profileOrg}>{user.organization}</Text>
+            ) : null}
             <View style={styles.profileBadge}>
               <Text style={styles.profileBadgeText}>PARAPO PRO</Text>
             </View>
@@ -65,15 +100,32 @@ export default function ProfileScreen() {
         {/* Stats row */}
         <View style={styles.statsRow}>
           {[
-            { label: 'Tasks Done', value: '127' },
-            { label: 'Focus Hours', value: '43h' },
-            { label: 'Team Score', value: '94%' },
-          ].map((stat) => (
-            <View key={stat.label} style={styles.statItem}>
+            { label: 'Focus Today', value: `${stats.todayMinutes}m` },
+            { label: 'This Week', value: `${stats.weekSessions} sessions` },
+            { label: 'Streak', value: `${stats.currentStreak}d` },
+          ].map((stat, i) => (
+            <View
+              key={stat.label}
+              style={[styles.statItem, i < 2 && styles.statItemBorder]}
+            >
               <Text style={styles.statValue}>{stat.value}</Text>
               <Text style={styles.statLabel}>{stat.label}</Text>
             </View>
           ))}
+        </View>
+
+        {/* Quick links */}
+        <View style={styles.quickLinks}>
+          <TouchableOpacity style={styles.quickLink} onPress={() => router.push('/ai/index')}>
+            <Text style={styles.quickLinkIcon}>✦</Text>
+            <Text style={styles.quickLinkText}>PARAPO AI</Text>
+            <Text style={styles.quickLinkChevron}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.quickLink, styles.quickLinkBorder]} onPress={() => router.push('/notes/index')}>
+            <Text style={styles.quickLinkIcon}>✎</Text>
+            <Text style={styles.quickLinkText}>Notes</Text>
+            <Text style={styles.quickLinkChevron}>›</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Settings sections */}
@@ -105,11 +157,11 @@ export default function ProfileScreen() {
         ))}
 
         {/* Sign out */}
-        <TouchableOpacity style={styles.signOutBtn} activeOpacity={0.75}>
+        <TouchableOpacity style={styles.signOutBtn} onPress={handleLogout} activeOpacity={0.75}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>PARAPO v1.0.0 — Built for student leaders</Text>
+        <Text style={styles.version}>PARAPO v1.0.0 · {user?.email || ''}</Text>
       </ScrollView>
     </View>
   );
@@ -117,7 +169,10 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
-  content: { paddingHorizontal: Layout.screenPaddingH, gap: 24 },
+  content: { paddingHorizontal: Layout.screenPaddingH, gap: 20 },
+
+  backBtn: { alignSelf: 'flex-start', padding: 4 },
+  backText: { ...Typography.bodyMedium, color: Colors.accentBlue },
 
   profileHero: {
     flexDirection: 'row',
@@ -133,17 +188,17 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 18,
-    backgroundColor: Colors.bgSurface,
+    backgroundColor: Colors.accentBlueDark,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    padding: 8,
   },
-  avatarImage: {
-    width: 56,
-    height: 56,
+  avatarInitials: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: Colors.accentBlueDeeper,
+    letterSpacing: 1,
   },
   profileInfo: {
     flex: 1,
@@ -157,6 +212,10 @@ const styles = StyleSheet.create({
   profileRole: {
     ...Typography.bodySmall,
     color: Colors.textMuted,
+  },
+  profileOrg: {
+    ...Typography.labelSmall,
+    color: Colors.textDisabled,
   },
   profileBadge: {
     backgroundColor: Colors.overlayBlue,
@@ -188,23 +247,44 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: 16,
+  },
+  statItemBorder: {
     borderRightWidth: 1,
     borderRightColor: Colors.border,
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: Colors.accentBlue,
   },
   statLabel: {
-    ...Typography.labelMedium,
+    ...Typography.labelSmall,
     color: Colors.textMuted,
     marginTop: 2,
   },
 
-  settingsSection: {
-    gap: 8,
+  quickLinks: {
+    backgroundColor: Colors.bgElevated,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
+  quickLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+  },
+  quickLinkBorder: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+  },
+  quickLinkIcon: { color: Colors.accentPurpleLight, fontSize: 16 },
+  quickLinkText: { ...Typography.labelLarge, color: Colors.textPrimary, fontWeight: '500', flex: 1 },
+  quickLinkChevron: { color: Colors.textMuted, fontSize: 18 },
+
+  settingsSection: { gap: 8 },
   settingsSectionTitle: {
     ...Typography.labelUppercase,
     color: Colors.textMuted,
@@ -236,13 +316,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settingsIconText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  settingsText: {
-    flex: 1,
-  },
+  settingsIconText: { fontSize: 14, color: Colors.textSecondary },
+  settingsText: { flex: 1 },
   settingsLabel: {
     ...Typography.labelLarge,
     color: Colors.textPrimary,
@@ -253,10 +328,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 1,
   },
-  settingsChevron: {
-    color: Colors.textMuted,
-    fontSize: 18,
-  },
+  settingsChevron: { color: Colors.textMuted, fontSize: 18 },
 
   signOutBtn: {
     backgroundColor: Colors.overlayRed,

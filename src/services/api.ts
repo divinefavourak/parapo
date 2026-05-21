@@ -1,20 +1,82 @@
-// Placeholder API client — swap BASE_URL and add auth headers when backend is ready.
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.parapo.app';
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import { storage } from '../utils/storage';
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
-  return res.json() as Promise<T>;
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (t: string) => void; reject: (e: unknown) => void }> = [];
+
+function processQueue(error: unknown, token: string | null) {
+  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token!)));
+  failedQueue = [];
 }
 
-export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
-  patch: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+export function createApiClient(): AxiosInstance {
+  const client = axios.create({
+    baseURL: BASE_URL,
+    timeout: 15000,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  client.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+    const token = await storage.getAccessToken();
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  });
+
+  client.interceptors.response.use(
+    (res: AxiosResponse) => res,
+    async (error) => {
+      const original = error.config;
+      if (error.response?.status !== 401 || original._retry) {
+        return Promise.reject(error);
+      }
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          original.headers.Authorization = `Bearer ${token}`;
+          return client(original);
+        });
+      }
+      original._retry = true;
+      isRefreshing = true;
+      try {
+        const refreshToken = await storage.getRefreshToken();
+        if (!refreshToken) throw new Error('No refresh token');
+        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refresh_token: refreshToken });
+        await storage.setAccessToken(data.access_token);
+        processQueue(null, data.access_token);
+        original.headers.Authorization = `Bearer ${data.access_token}`;
+        return client(original);
+      } catch (err) {
+        processQueue(err, null);
+        await storage.clearTokens();
+        return Promise.reject(err);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+  );
+
+  return client;
+}
+
+export const apiClient = createApiClient();
+
+export type ApiError = {
+  message: string;
+  status: number;
+  detail?: string;
 };
+
+export function parseApiError(error: unknown): ApiError {
+  if (axios.isAxiosError(error)) {
+    return {
+      message: error.response?.data?.detail ?? error.message,
+      status: error.response?.status ?? 0,
+      detail: error.response?.data?.detail,
+    };
+  }
+  return { message: String(error), status: 0 };
+}

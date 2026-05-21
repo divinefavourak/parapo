@@ -8,17 +8,31 @@ import {
   Dimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
-  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../src/constants/Colors';
-import { useUserStore } from '../src/store/userStore';
+import { useAuthStore } from '../src/store/authStore';
 
 const { width } = Dimensions.get('window');
 
-const slides = [
+interface SlideFeature {
+  icon: string;
+  label: string;
+}
+
+interface Slide {
+  id: string;
+  icon: string;
+  accentColor: string;
+  glowColor: string;
+  title: string;
+  subtitle: string;
+  features: SlideFeature[];
+}
+
+const slides: Slide[] = [
   {
     id: '1',
     icon: '⚡',
@@ -63,7 +77,7 @@ const slides = [
 export default function OnboardingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const setOnboarded = useUserStore((s) => s.setOnboarded);
+  const setOnboarded = useAuthStore((s) => s.setOnboarded);
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
@@ -75,20 +89,20 @@ export default function OnboardingScreen() {
     []
   );
 
-  const handleNext = () => {
+  const handleNext = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (currentIndex < slides.length - 1) {
       const next = currentIndex + 1;
       flatListRef.current?.scrollToIndex({ index: next, animated: true });
       setCurrentIndex(next);
     } else {
-      setOnboarded(true);
+      await setOnboarded();
       router.replace('/(tabs)');
     }
   };
 
-  const handleSkip = () => {
-    setOnboarded(true);
+  const handleSkip = async () => {
+    await setOnboarded();
     router.replace('/(tabs)');
   };
 
@@ -122,7 +136,7 @@ export default function OnboardingScreen() {
 
             {/* Feature rows */}
             <View style={styles.features}>
-              {item.features.map((f, i) => (
+              {item.features.map((f: SlideFeature, i: number) => (
                 <View key={i} style={[styles.featureRow, { borderColor: item.accentColor + '25' }]}>
                   <View style={[styles.featureIconWrap, { backgroundColor: item.accentColor + '18' }]}>
                     <Text style={[styles.featureIcon, { color: item.accentColor }]}>{f.icon}</Text>

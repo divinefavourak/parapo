@@ -7,7 +7,7 @@ import { Typography } from '../../src/constants/Typography';
 import { Layout } from '../../src/constants/Spacing';
 import { TopBar } from '../../src/components/navigation/TopBar';
 import { useFocusStore } from '../../src/store/focusStore';
-import { FOCUS_MODES, mockFocusStats } from '../../src/features/focus/mockData';
+import { FOCUS_MODES } from '../../src/features/focus/mockData';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 
 function formatTime(seconds: number): string {
@@ -18,12 +18,15 @@ function formatTime(seconds: number): string {
 
 export default function FocusScreen() {
   const insets = useSafeAreaInsets();
-  const { mode, state, elapsedSeconds, totalSeconds, sessionTitle, setMode, setSessionTitle, start, pause, reset, tick } = useFocusStore();
+  const { mode, state, elapsedSeconds, totalSeconds, sessionTitle, stats, setMode, setSessionTitle, start, pause, reset, tick, fetchStats } = useFocusStore();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const progress = totalSeconds > 0 ? elapsedSeconds / totalSeconds : 0;
   const remaining = totalSeconds - elapsedSeconds;
-  const stats = mockFocusStats;
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   useEffect(() => {
     if (state === 'running') {
@@ -151,7 +154,7 @@ export default function FocusScreen() {
         <View style={styles.statsGrid}>
           <StatCard label="Today" value={`${stats.todayMinutes}m`} accent={Colors.accentBlue} />
           <StatCard label="This Week" value={`${stats.weekSessions} sessions`} accent={Colors.accentPurple} />
-          <StatCard label="Streak" value={`${stats.currentStreak} days`} accent={Colors.accentGreen} />
+          <StatCard label="Streak" value={`${stats.currentStreak} day${stats.currentStreak !== 1 ? 's' : ''}`} accent={Colors.accentGreen} />
           <StatCard label="Avg Session" value={`${stats.avgSessionMin}m`} accent={Colors.accentRed} />
         </View>
 

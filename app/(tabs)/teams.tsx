@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
@@ -9,12 +9,8 @@ import { Avatar } from '../../src/components/ui/Avatar';
 import { Badge } from '../../src/components/ui/Badge';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { Button } from '../../src/components/ui/Button';
-import {
-  mockTeamMembers,
-  mockDelegations,
-  mockMeetings,
-  mockMilestones,
-} from '../../src/features/leadership/mockData';
+import { mockMilestones } from '../../src/features/leadership/mockData';
+import { useLeadershipStore } from '../../src/store/leadershipStore';
 
 const statusVariant: Record<string, 'blocker' | 'success' | 'info' | 'purple' | 'neutral'> = {
   PENDING: 'blocker',
@@ -25,6 +21,9 @@ const statusVariant: Record<string, 'blocker' | 'success' | 'info' | 'purple' | 
 
 export default function TeamsScreen() {
   const insets = useSafeAreaInsets();
+  const { teamMembers, meetings, delegations, fetchAll } = useLeadershipStore();
+
+  useEffect(() => { fetchAll(); }, []);
 
   return (
     <View style={styles.container}>
@@ -43,11 +42,11 @@ export default function TeamsScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Team Pulse</Text>
             <View style={styles.activeBadge}>
-              <Text style={styles.activeBadgeText}>8 ACTIVE</Text>
+              <Text style={styles.activeBadgeText}>{teamMembers.filter((m) => m.isOnline).length} ACTIVE</Text>
             </View>
           </View>
 
-          {mockTeamMembers.filter((m) => m.isOnline).map((member) => (
+          {teamMembers.filter((m) => m.isOnline).map((member) => (
             <TouchableOpacity key={member.id} style={styles.memberCard} activeOpacity={0.8}>
               <View style={styles.memberLeft}>
                 <Avatar
@@ -75,7 +74,7 @@ export default function TeamsScreen() {
           </View>
 
           {['LOGISTICS', 'CREATIVE', 'ENGAGEMENT'].map((category) => {
-            const items = mockDelegations.filter((d) => d.category === category);
+            const items = delegations.filter((d) => d.category === category);
             const categoryColor = items[0]?.categoryColor ?? Colors.textMuted;
             return (
               <View key={category} style={styles.delegationGroup}>
@@ -125,8 +124,8 @@ export default function TeamsScreen() {
         {/* Meeting Pulse */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Meeting Pulse</Text>
-          {mockMeetings.map((meeting) => (
-            <View key={meeting.id} style={[styles.meetingCard, meeting.status === 'upcoming' && meeting.minutesUntil && styles.meetingCardLive]}>
+          {meetings.map((meeting) => (
+            <View key={meeting.id} style={[styles.meetingCard, meeting.status === 'upcoming' && !!meeting.minutesUntil && styles.meetingCardLive]}>
               {meeting.minutesUntil && (
                 <View style={styles.liveIndicator}>
                   <View style={styles.liveDot} />

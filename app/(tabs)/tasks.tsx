@@ -66,7 +66,8 @@ export default function TasksScreen() {
       description: newDesc.trim() || 'No description provided.',
       category: newCategory,
       column: newColumn,
-      assignee: { name: 'Me', initials: 'ME', avatarColor: Colors.accentBlueDark },
+      assignee_name: 'Me',
+      assignee_initials: 'ME',
     });
     closeModal();
   };

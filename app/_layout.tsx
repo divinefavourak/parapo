@@ -1,39 +1,93 @@
 import '../src/global.css';
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
+import { useAuthStore } from '../src/store/authStore';
+import { notificationService } from '../src/services/notifications';
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
       retry: 1,
+      retryDelay: 1000,
     },
   },
 });
 
-export default function RootLayout() {
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { status, user } = useAuthStore();
+  const router = useRouter();
+  const segments = useSegments();
+
   useEffect(() => {
-    SplashScreen.hideAsync();
+    if (status === 'loading') return;
+
+    const inAuthGroup = segments[0] === 'auth';
+    const inTabsGroup = segments[0] === '(tabs)';
+
+    if (status === 'unauthenticated' && !inAuthGroup) {
+      router.replace('/auth/login');
+    } else if (status === 'authenticated') {
+      if (user && !user.is_onboarded && segments[0] !== 'onboarding') {
+        router.replace('/onboarding');
+      } else if (user?.is_onboarded && (inAuthGroup || segments[0] === 'onboarding' || segments[0] === 'splash')) {
+        router.replace('/(tabs)');
+      }
+    }
+  }, [status, user, segments]);
+
+  return <>{children}</>;
+}
+
+function AppInitializer({ children }: { children: React.ReactNode }) {
+  const initialize = useAuthStore((s) => s.initialize);
+
+  useEffect(() => {
+    (async () => {
+      await initialize();
+      SplashScreen.hideAsync();
+    })();
   }, []);
 
+  useEffect(() => {
+    notificationService.registerPushToken().catch(() => {});
+    const sub1 = notificationService.addNotificationListener(() => {});
+    const sub2 = notificationService.addResponseListener(() => {});
+    return () => {
+      sub1.remove();
+      sub2.remove();
+    };
+  }, []);
+
+  return <>{children}</>;
+}
+
+export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="splash" />
-            <Stack.Screen name="onboarding" />
-            <Stack.Screen name="(tabs)" />
-          </Stack>
+          <AppInitializer>
+            <AuthGuard>
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="splash" />
+                <Stack.Screen name="onboarding" />
+                <Stack.Screen name="auth" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="ai/index" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+                <Stack.Screen name="notes/index" options={{ animation: 'slide_from_right' }} />
+              </Stack>
+            </AuthGuard>
+          </AppInitializer>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

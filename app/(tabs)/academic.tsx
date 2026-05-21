@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/Colors';
@@ -7,8 +7,8 @@ import { Layout } from '../../src/constants/Spacing';
 import { TopBar } from '../../src/components/navigation/TopBar';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { Badge } from '../../src/components/ui/Badge';
-import { mockAcademicData } from '../../src/features/academic/mockData';
 import { Assignment, Course } from '../../src/features/academic/types';
+import { useAcademicStore } from '../../src/store/academicStore';
 
 const PRIORITY_VARIANT: Record<string, 'blocker' | 'review' | 'neutral'> = {
   high: 'blocker',
@@ -51,11 +51,12 @@ function CourseCard({ course }: { course: Course }) {
   );
 }
 
-function AssignmentRow({ item }: { item: Assignment }) {
+function AssignmentRow({ item, onSubmit }: { item: Assignment; onSubmit: () => void }) {
   const isSubmitted = item.status === 'submitted' || item.status === 'graded';
   return (
     <TouchableOpacity
       style={[styles.assignmentRow, isSubmitted && styles.assignmentRowDone]}
+      onPress={!isSubmitted ? onSubmit : undefined}
       activeOpacity={0.8}
     >
       <View style={styles.assignmentLeft}>
@@ -85,8 +86,11 @@ function AssignmentRow({ item }: { item: Assignment }) {
 
 export default function AcademicScreen() {
   const insets = useSafeAreaInsets();
-  const { stats, courses, assignments, studyGoals, semesterLabel } = mockAcademicData;
+  const { data, fetchData, submitAssignment } = useAcademicStore();
+  const { stats, courses, assignments, studyGoals, semesterLabel } = data;
   const [showAllCourses, setShowAllCourses] = useState(false);
+
+  useEffect(() => { fetchData(); }, []);
 
   const visibleCourses = showAllCourses ? courses : courses.slice(0, 3);
   const pendingAssignments = assignments.filter((a) => a.status === 'pending');
@@ -170,7 +174,7 @@ export default function AcademicScreen() {
           </View>
           <View style={styles.assignmentList}>
             {pendingAssignments.map((item) => (
-              <AssignmentRow key={item.id} item={item} />
+              <AssignmentRow key={item.id} item={item} onSubmit={() => submitAssignment(item.id)} />
             ))}
           </View>
           {doneAssignments.length > 0 && (
@@ -178,7 +182,7 @@ export default function AcademicScreen() {
               <Text style={styles.completedHeader}>Completed</Text>
               <View style={[styles.assignmentList, styles.doneList]}>
                 {doneAssignments.map((item) => (
-                  <AssignmentRow key={item.id} item={item} />
+                  <AssignmentRow key={item.id} item={item} onSubmit={() => {}} />
                 ))}
               </View>
             </>
