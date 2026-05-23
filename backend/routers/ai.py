@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from openai import RateLimitError
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -31,11 +32,10 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 
 
 def _require_openai() -> None:
-    """Raise 503 if the OpenAI API key is not configured."""
-    if not settings.OPENAI_API_KEY:
+    if not settings.GEMINI_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AI service is not configured. Set OPENAI_API_KEY.",
+            detail="AI service is not configured. Set GEMINI_API_KEY in backend/.env.",
         )
 
 
@@ -64,6 +64,11 @@ async def chat(
     try:
         reply, usage = await ai_service.chat_with_ai(payload.messages, user_context)
         return ChatResponse(reply=reply, usage=usage)
+    except RateLimitError:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="AI rate limit reached. Wait a moment and try again.",
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

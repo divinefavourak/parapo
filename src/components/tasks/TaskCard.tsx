@@ -135,8 +135,8 @@ export const TaskCard: React.FC<Props> = ({ task, onPress }) => {
 
         <View style={styles.footer}>
           <View style={styles.assignee}>
-            <Avatar initials={task.assignee.initials} size={24} color={task.assignee.avatarColor} />
-            <Text style={styles.assigneeName}>{task.assignee.name}</Text>
+            <Avatar initials={task.assignee?.initials ?? 'U'} size={24} color={task.assignee?.avatarColor} />
+            <Text style={styles.assigneeName}>{task.assignee?.name ?? 'Unassigned'}</Text>
           </View>
           {task.dueLabel && (
             <View style={styles.dueRow}>

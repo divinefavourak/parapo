@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '../../src/constants/Colors';
 import { Typography } from '../../src/constants/Typography';
 import { useAIStore } from '../../src/store/aiStore';
+import { useTaskStore } from '../../src/store/taskStore';
 import { ChatMessage } from '../../src/services/ai';
 
 const QUICK_PROMPTS = [
@@ -17,6 +18,73 @@ const QUICK_PROMPTS = [
   'Analyze my workload',
   'Give me a productivity tip',
 ];
+
+// Renders **bold** inline spans within a string
+function InlineText({ text, style }: { text: string; style?: any }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <Text style={style}>
+      {parts.map((part, i) =>
+        part.startsWith('**') && part.endsWith('**') ? (
+          <Text key={i} style={[style, styles.bold]}>{part.slice(2, -2)}</Text>
+        ) : (
+          <Text key={i}>{part}</Text>
+        )
+      )}
+    </Text>
+  );
+}
+
+// Renders markdown-ish AI text: paragraphs, bullet lists, bold
+function MarkdownContent({ content }: { content: string }) {
+  // Normalise: strip leading/trailing whitespace, collapse 3+ newlines to 2
+  const normalised = content.trim().replace(/\n{3,}/g, '\n\n');
+  const blocks = normalised.split(/\n\n/);
+
+  return (
+    <View style={{ gap: 10 }}>
+      {blocks.map((block, bi) => {
+        const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+
+        // Bullet / numbered list block
+        const allList = lines.every((l) => /^[\*\-]\s/.test(l) || /^\d+\.\s/.test(l));
+        const hasAnyBullet = lines.some((l) => /^[\*\-]\s/.test(l) || /^\d+\.\s/.test(l));
+
+        if (allList || hasAnyBullet) {
+          return (
+            <View key={bi} style={{ gap: 5 }}>
+              {lines.map((line, li) => {
+                const bulletMatch = line.match(/^[\*\-]\s+(.+)/);
+                const numMatch = line.match(/^(\d+)\.\s+(.+)/);
+                if (bulletMatch) {
+                  return (
+                    <View key={li} style={styles.bulletRow}>
+                      <Text style={styles.bulletDot}>•</Text>
+                      <InlineText text={bulletMatch[1]} style={styles.bubbleTextAI} />
+                    </View>
+                  );
+                }
+                if (numMatch) {
+                  return (
+                    <View key={li} style={styles.bulletRow}>
+                      <Text style={styles.bulletNum}>{numMatch[1]}.</Text>
+                      <InlineText text={numMatch[2]} style={styles.bubbleTextAI} />
+                    </View>
+                  );
+                }
+                return <InlineText key={li} text={line} style={styles.bubbleTextAI} />;
+              })}
+            </View>
+          );
+        }
+
+        // Plain paragraph — join lines with space (handles soft-wrap)
+        const paragraph = lines.join(' ');
+        return <InlineText key={bi} text={paragraph} style={styles.bubbleTextAI} />;
+      })}
+    </View>
+  );
+}
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === 'user';
@@ -28,9 +96,11 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           <Text style={styles.aiLabelText}>PARAPO AI</Text>
         </View>
       )}
-      <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextAI]}>
-        {msg.content}
-      </Text>
+      {isUser ? (
+        <Text style={styles.bubbleTextUser}>{msg.content}</Text>
+      ) : (
+        <MarkdownContent content={msg.content} />
+      )}
     </View>
   );
 }
@@ -39,8 +109,14 @@ export default function AIScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { messages, isTyping, error, sendMessage, clearConversation, clearError } = useAIStore();
+  const fetchTasks = useTaskStore((s) => s.fetchTasks);
   const [input, setInput] = useState('');
   const listRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    // Ensure task context is up to date when AI screen opens
+    fetchTasks();
+  }, []);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -203,8 +279,12 @@ const styles = StyleSheet.create({
   aiLabelIcon: { color: Colors.accentPurpleLight, fontSize: 10 },
   aiLabelText: { ...Typography.labelSmall, color: Colors.accentPurpleLight, letterSpacing: 0.8 },
   bubbleText: { fontSize: 14, lineHeight: 21 },
-  bubbleTextUser: { color: Colors.accentBlueDeeper, fontWeight: '500' },
-  bubbleTextAI: { color: Colors.textPrimary },
+  bubbleTextUser: { color: Colors.accentBlueDeeper, fontWeight: '500', fontSize: 14, lineHeight: 21 },
+  bubbleTextAI: { color: Colors.textPrimary, fontSize: 14, lineHeight: 21 },
+  bold: { fontWeight: '700', color: Colors.textPrimary },
+  bulletRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  bulletDot: { color: Colors.accentPurpleLight, fontSize: 14, lineHeight: 21, width: 12 },
+  bulletNum: { color: Colors.accentPurpleLight, fontSize: 13, lineHeight: 21, minWidth: 18 },
 
   typingIndicator: {
     flexDirection: 'row', alignItems: 'center',

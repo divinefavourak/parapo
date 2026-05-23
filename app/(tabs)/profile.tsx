@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert, ToastAndroid, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors } from '../../src/constants/Colors';
@@ -12,25 +12,25 @@ const SETTINGS_SECTIONS = [
   {
     title: 'Account',
     items: [
-      { icon: '◉', label: 'Profile Settings', sublabel: 'Name, photo, contact info' },
-      { icon: '⚡', label: 'Organization', sublabel: 'Student council & team' },
-      { icon: '🔔', label: 'Notifications', sublabel: 'Alerts & reminders' },
+      { icon: '◉', label: 'Profile Settings', sublabel: 'Name, photo, contact info', route: '/settings/profile' as const },
+      { icon: '⚡', label: 'Organization', sublabel: 'Student council & team', route: '/settings/profile' as const },
+      { icon: '🔔', label: 'Notifications', sublabel: 'Alerts & reminders', route: '/settings/notifications' as const },
     ],
   },
   {
     title: 'Preferences',
     items: [
-      { icon: '◎', label: 'Focus Settings', sublabel: 'Default mode, auto-start' },
-      { icon: '◈', label: 'AI Assistant', sublabel: 'Briefing preferences, tone' },
-      { icon: '☑', label: 'Task Defaults', sublabel: 'Priority, labels, views' },
+      { icon: '◎', label: 'Focus Settings', sublabel: 'Default mode, auto-start', route: '/settings/focus' as const },
+      { icon: '◈', label: 'AI Assistant', sublabel: 'Briefing preferences, tone', route: null },
+      { icon: '☑', label: 'Task Defaults', sublabel: 'Priority, labels, views', route: null },
     ],
   },
   {
     title: 'App',
     items: [
-      { icon: '◻', label: 'Appearance', sublabel: 'Dark mode, accent color' },
-      { icon: '⇲', label: 'Data & Sync', sublabel: 'Backup, export, cloud' },
-      { icon: '?', label: 'Help & Feedback', sublabel: 'Support, bug reports' },
+      { icon: '◻', label: 'Appearance', sublabel: 'Dark mode (always on)', route: null },
+      { icon: '⇲', label: 'Data & Sync', sublabel: 'Backup, export, cloud', route: null },
+      { icon: '?', label: 'Help & Feedback', sublabel: 'Support, bug reports', route: null },
     ],
   },
 ];
@@ -64,6 +64,14 @@ export default function ProfileScreen() {
   };
 
   const initials = user?.full_name ? getInitials(user.full_name) : 'U';
+
+  const showComingSoon = (label: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(`${label} — coming soon`, ToastAndroid.SHORT);
+    } else {
+      Alert.alert(label, 'This feature is coming soon.');
+    }
+  };
   const focusHours = Math.round(stats.todayMinutes / 60 * 10) / 10;
 
   return (
@@ -116,12 +124,12 @@ export default function ProfileScreen() {
 
         {/* Quick links */}
         <View style={styles.quickLinks}>
-          <TouchableOpacity style={styles.quickLink} onPress={() => router.push('/ai/index')}>
+          <TouchableOpacity style={styles.quickLink} onPress={() => router.push('/ai')}>
             <Text style={styles.quickLinkIcon}>✦</Text>
             <Text style={styles.quickLinkText}>PARAPO AI</Text>
             <Text style={styles.quickLinkChevron}>›</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.quickLink, styles.quickLinkBorder]} onPress={() => router.push('/notes/index')}>
+          <TouchableOpacity style={[styles.quickLink, styles.quickLinkBorder]} onPress={() => router.push('/notes')}>
             <Text style={styles.quickLinkIcon}>✎</Text>
             <Text style={styles.quickLinkText}>Notes</Text>
             <Text style={styles.quickLinkChevron}>›</Text>
@@ -141,6 +149,7 @@ export default function ProfileScreen() {
                     i < section.items.length - 1 && styles.settingsItemBorder,
                   ]}
                   activeOpacity={0.7}
+                  onPress={() => item.route ? router.push(item.route) : showComingSoon(item.label)}
                 >
                   <View style={styles.settingsIcon}>
                     <Text style={styles.settingsIconText}>{item.icon}</Text>

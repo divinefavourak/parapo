@@ -15,8 +15,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # OpenAI
-    OPENAI_API_KEY: str = ""
+    # Gemini
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.0-flash"
 
     # Expo Push
     EXPO_PUSH_URL: str = "https://exp.host/--/api/v2/push/send"

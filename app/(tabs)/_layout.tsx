@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Home, CheckSquare, Timer, BookOpen, Users } from 'lucide-react-native';
 import { Colors } from '../../src/constants/Colors';
 import { Typography } from '../../src/constants/Typography';
 
@@ -11,15 +12,7 @@ interface TabIconProps {
   focused: boolean;
 }
 
-const icons: Record<TabName, string> = {
-  index: '⌂',
-  tasks: '☑',
-  focus: '◎',
-  academic: '✎',
-  teams: '⚡',
-};
-
-const labels: Record<TabName, string> = {
+const LABELS: Record<TabName, string> = {
   index: 'Home',
   tasks: 'Tasks',
   focus: 'Focus',
@@ -27,11 +20,25 @@ const labels: Record<TabName, string> = {
   teams: 'Teams',
 };
 
+const ICON_SIZE = 20;
+
 function TabIcon({ name, focused }: TabIconProps) {
+  const color = focused ? Colors.accentBlue : Colors.textMuted;
+  const icons: Record<TabName, React.ReactNode> = {
+    index:    <Home size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />,
+    tasks:    <CheckSquare size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />,
+    focus:    <Timer size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />,
+    academic: <BookOpen size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />,
+    teams:    <Users size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />,
+  };
+
   return (
-    <View style={[styles.tabItem, focused && styles.tabItemActive]}>
-      <Text style={[styles.tabIcon, focused && styles.tabIconActive]}>{icons[name]}</Text>
-      {focused && <Text style={styles.tabLabel}>{labels[name]}</Text>}
+    <View style={styles.tabItem}>
+      {focused && <View style={styles.activeIndicator} />}
+      {icons[name]}
+      <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
+        {LABELS[name]}
+      </Text>
     </View>
   );
 }
@@ -47,10 +54,9 @@ export default function TabLayout() {
           backgroundColor: Colors.navBg,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-          height: 64 + insets.bottom,
+          height: 60 + insets.bottom,
           paddingBottom: insets.bottom,
-          paddingTop: 8,
-          paddingHorizontal: 4,
+          paddingTop: 0,
           elevation: 0,
         },
         tabBarShowLabel: false,
@@ -76,7 +82,6 @@ export default function TabLayout() {
         name="teams"
         options={{ tabBarIcon: ({ focused }) => <TabIcon name="teams" focused={focused} /> }}
       />
-      {/* Profile accessible via header avatar — hidden from tab bar */}
       <Tabs.Screen
         name="profile"
         options={{ tabBarItemStyle: { display: 'none' } }}
@@ -89,28 +94,26 @@ const styles = StyleSheet.create({
   tabItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 10,
-    minHeight: 44,
-    minWidth: 50,
+    gap: 3,
+    width: 60,
+    paddingTop: 10,
   },
-  tabItemActive: {
-    backgroundColor: Colors.accentBlueDark,
-  },
-  tabIcon: {
-    fontSize: 19,
-    color: Colors.textMuted,
-  },
-  tabIconActive: {
-    color: Colors.accentBlueDeeper,
-    fontSize: 19,
+  activeIndicator: {
+    position: 'absolute',
+    top: 0,
+    width: 24,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: Colors.accentBlue,
   },
   tabLabel: {
-    ...Typography.labelSmall,
-    color: Colors.accentBlueDeeper,
-    fontWeight: '700',
-    marginTop: 2,
     fontSize: 10,
+    color: Colors.textMuted,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  tabLabelActive: {
+    color: Colors.accentBlue,
+    fontWeight: '700',
   },
 });

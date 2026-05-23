@@ -22,14 +22,17 @@ _client: Optional[AsyncOpenAI] = None
 
 
 def _get_client() -> AsyncOpenAI:
-    """Lazily initialise the OpenAI client so import doesn't fail without a key."""
     global _client
     if _client is None:
-        _client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        _client = AsyncOpenAI(
+            api_key=settings.GEMINI_API_KEY,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            max_retries=0,  # handle 429 ourselves — SDK retry storms exhaust free-tier quota
+        )
     return _client
 
 
-MODEL = "gpt-4o-mini"
+MODEL = settings.GEMINI_MODEL
 
 
 # ── Internal helper ───────────────────────────────────────────────────────────

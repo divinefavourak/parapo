@@ -61,6 +61,18 @@ def change_password(
     return None
 
 
+@router.post("/me/onboarded", status_code=status.HTTP_204_NO_CONTENT)
+def mark_onboarded(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Mark the current user as having completed onboarding."""
+    current_user.is_onboarded = True
+    current_user.updated_at = datetime.utcnow()
+    db.commit()
+    return None
+
+
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_account(
     current_user: User = Depends(get_current_user),

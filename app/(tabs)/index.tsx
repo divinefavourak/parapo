@@ -42,7 +42,7 @@ export default function DashboardScreen() {
         showLogo
         rightAction={
           <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.searchBtn} onPress={() => router.push('/ai/index')}>
+            <TouchableOpacity style={styles.searchBtn} onPress={() => router.push('/ai')}>
               <Text style={styles.searchIcon}>✦</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -86,14 +86,14 @@ export default function DashboardScreen() {
           <View style={styles.fabMenu}>
             <TouchableOpacity
               style={styles.fabMenuItem}
-              onPress={() => { setFabOpen(false); router.push('/notes/index'); }}
+              onPress={() => { setFabOpen(false); router.push('/notes'); }}
             >
               <Text style={styles.fabMenuIcon}>✎</Text>
               <Text style={styles.fabMenuText}>New Note</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.fabMenuItem}
-              onPress={() => { setFabOpen(false); router.push('/ai/index'); }}
+              onPress={() => { setFabOpen(false); router.push('/ai'); }}
             >
               <Text style={styles.fabMenuIcon}>✦</Text>
               <Text style={styles.fabMenuText}>Ask AI</Text>

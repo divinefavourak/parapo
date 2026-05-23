@@ -1,43 +1,29 @@
 """Authentication service: JWT creation/verification and password hashing."""
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from uuid import UUID
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import HTTPException, status
 
 from config import settings
 
 # ── Password hashing ──────────────────────────────────────────────────────────
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def _prepare(plain: str) -> bytes:
+    # SHA-256 keeps input to bcrypt at 32 bytes regardless of password length.
+    return hashlib.sha256(plain.encode()).digest()
 
 
 def hash_password(plain_password: str) -> str:
-    """Hash a plain-text password using bcrypt.
-
-    Args:
-        plain_password: The raw password string to hash.
-
-    Returns:
-        The bcrypt hash string.
-    """
-    return pwd_context.hash(plain_password)
+    return bcrypt.hashpw(_prepare(plain_password), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain-text password against a bcrypt hash.
-
-    Args:
-        plain_password: The raw password to check.
-        hashed_password: The stored bcrypt hash.
-
-    Returns:
-        True if the password matches, False otherwise.
-    """
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(_prepare(plain_password), hashed_password.encode())
 
 
 # ── JWT ───────────────────────────────────────────────────────────────────────

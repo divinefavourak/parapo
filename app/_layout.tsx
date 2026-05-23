@@ -1,6 +1,6 @@
 import '../src/global.css';
 import { useEffect } from 'react';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, useRootNavigationState } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -25,12 +25,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { status, user } = useAuthStore();
   const router = useRouter();
   const segments = useSegments();
+  const navigationState = useRootNavigationState();
 
   useEffect(() => {
+    if (!navigationState?.key) return; // navigator not mounted yet
     if (status === 'loading') return;
 
     const inAuthGroup = segments[0] === 'auth';
-    const inTabsGroup = segments[0] === '(tabs)';
 
     if (status === 'unauthenticated' && !inAuthGroup) {
       router.replace('/auth/login');
@@ -41,7 +42,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         router.replace('/(tabs)');
       }
     }
-  }, [status, user, segments]);
+  }, [status, user, segments, navigationState?.key]);
 
   return <>{children}</>;
 }
@@ -83,8 +84,11 @@ export default function RootLayout() {
                 <Stack.Screen name="onboarding" />
                 <Stack.Screen name="auth" />
                 <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="ai/index" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-                <Stack.Screen name="notes/index" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="ai" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+                <Stack.Screen name="notes" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="settings/profile" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="settings/notifications" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="settings/focus" options={{ animation: 'slide_from_right' }} />
               </Stack>
             </AuthGuard>
           </AppInitializer>

@@ -26,13 +26,13 @@ export interface WorkloadAnalysis {
 }
 
 export const aiService = {
-  async chat(messages: ChatMessage[], context?: string): Promise<{ reply: string; usage?: { tokens: number } }> {
+  async chat(messages: ChatMessage[], context?: Record<string, any>): Promise<{ reply: string; usage?: { tokens: number } }> {
     const { data } = await apiClient.post('/ai/chat', { messages, context });
     return data;
   },
 
   async getDailyBriefing(): Promise<AIBriefingResponse> {
-    const { data } = await apiClient.get<AIBriefingResponse>('/ai/briefing');
+    const { data } = await apiClient.post<AIBriefingResponse>('/ai/briefing', {});
     return data;
   },
 

@@ -1,8 +1,27 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { FocusMode, FocusState } from '../features/focus/types';
 import { FOCUS_MODES } from '../features/focus/mockData';
 import { focusService, FocusSession } from '../services/focus';
 import { notificationService } from '../services/notifications';
+
+interface FocusPrefs {
+  workMinutes: number;
+  shortBreakMinutes: number;
+  longBreakMinutes: number;
+  sessionsBeforeLong: number;
+  autoStartBreak: boolean;
+  keepScreenOn: boolean;
+}
+
+const DEFAULT_PREFS: FocusPrefs = {
+  workMinutes: 25,
+  shortBreakMinutes: 5,
+  longBreakMinutes: 15,
+  sessionsBeforeLong: 4,
+  autoStartBreak: false,
+  keepScreenOn: true,
+};
 
 interface FocusStats {
   todayMinutes: number;
@@ -21,7 +40,9 @@ interface FocusStoreState {
   pendingNotificationId: string | null;
   stats: FocusStats;
   isLoadingStats: boolean;
+  prefs: FocusPrefs;
   // Actions
+  loadPrefs: () => Promise<void>;
   setMode: (mode: FocusMode) => void;
   setSessionTitle: (title: string) => void;
   start: () => Promise<void>;
@@ -50,17 +71,36 @@ export const useFocusStore = create<FocusStoreState>((set, get) => ({
   pendingNotificationId: null,
   stats: DEFAULT_STATS,
   isLoadingStats: false,
+  prefs: DEFAULT_PREFS,
+
+  loadPrefs: async () => {
+    try {
+      const raw = await AsyncStorage.getItem('focus_prefs');
+      if (!raw) return;
+      const saved: Partial<FocusPrefs> = JSON.parse(raw);
+      const prefs = { ...DEFAULT_PREFS, ...saved };
+      set({ prefs });
+      // Re-apply duration for the current mode in case it's pomodoro
+      const { mode, state } = get();
+      if (state === 'idle' && mode === 'pomodoro') {
+        set({ totalSeconds: prefs.workMinutes * 60 });
+      }
+    } catch {}
+  },
 
   setMode: (mode) => {
     if (get().state !== 'idle') return;
+    const { prefs } = get();
     const found = FOCUS_MODES.find((m) => m.key === mode);
-    set({ mode, elapsedSeconds: 0, state: 'idle', totalSeconds: (found?.duration ?? 25) * 60 });
+    const baseDuration = found?.duration ?? 25;
+    const duration = mode === 'pomodoro' ? prefs.workMinutes : baseDuration;
+    set({ mode, elapsedSeconds: 0, state: 'idle', totalSeconds: duration * 60 });
   },
 
   setSessionTitle: (title) => set({ sessionTitle: title }),
 
   start: async () => {
-    const { mode, sessionTitle, totalSeconds } = get();
+    const { mode, sessionTitle, totalSeconds, prefs } = get();
     set({ state: 'running' });
 
     // Schedule completion notification
@@ -74,11 +114,13 @@ export const useFocusStore = create<FocusStoreState>((set, get) => ({
 
     // Create session on backend
     try {
-      const found = FOCUS_MODES.find((m) => m.key === mode);
+      const durationMinutes = mode === 'pomodoro'
+        ? prefs.workMinutes
+        : (FOCUS_MODES.find((m) => m.key === mode)?.duration ?? 25);
       const session = await focusService.startSession({
         mode,
         title: sessionTitle || 'Focus Session',
-        duration_minutes: found?.duration ?? 25,
+        duration_minutes: durationMinutes,
       });
       set({ activeSessionId: session.id });
     } catch {

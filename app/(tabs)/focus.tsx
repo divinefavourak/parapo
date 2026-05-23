@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Colors } from '../../src/constants/Colors';
 import { Typography } from '../../src/constants/Typography';
 import { Layout } from '../../src/constants/Spacing';
@@ -9,6 +10,8 @@ import { TopBar } from '../../src/components/navigation/TopBar';
 import { useFocusStore } from '../../src/store/focusStore';
 import { FOCUS_MODES } from '../../src/features/focus/mockData';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
+
+const KEEP_AWAKE_TAG = 'parapo-focus';
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -18,7 +21,7 @@ function formatTime(seconds: number): string {
 
 export default function FocusScreen() {
   const insets = useSafeAreaInsets();
-  const { mode, state, elapsedSeconds, totalSeconds, sessionTitle, stats, setMode, setSessionTitle, start, pause, reset, tick, fetchStats } = useFocusStore();
+  const { mode, state, elapsedSeconds, totalSeconds, sessionTitle, stats, prefs, setMode, setSessionTitle, start, pause, reset, tick, fetchStats, loadPrefs } = useFocusStore();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const progress = totalSeconds > 0 ? elapsedSeconds / totalSeconds : 0;
@@ -26,15 +29,23 @@ export default function FocusScreen() {
 
   useEffect(() => {
     fetchStats();
+    loadPrefs();
   }, []);
 
   useEffect(() => {
     if (state === 'running') {
       intervalRef.current = setInterval(tick, 1000);
+      if (prefs.keepScreenOn) {
+        activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
+      }
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      deactivateKeepAwake(KEEP_AWAKE_TAG);
     }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      deactivateKeepAwake(KEEP_AWAKE_TAG);
+    };
   }, [state]);
 
   const currentMode = FOCUS_MODES.find((m) => m.key === mode) ?? FOCUS_MODES[1];
@@ -66,7 +77,9 @@ export default function FocusScreen() {
               activeOpacity={0.75}
             >
               <Text style={[styles.modeLabel, mode === m.key && styles.modeLabelActive]}>{m.label}</Text>
-              <Text style={[styles.modeDesc, mode === m.key && styles.modeDescActive]}>{m.description}</Text>
+              <Text style={[styles.modeDesc, mode === m.key && styles.modeDescActive]}>
+                {m.key === 'pomodoro' ? `${prefs.workMinutes}m work, ${prefs.shortBreakMinutes}m rest` : m.description}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -107,7 +120,9 @@ export default function FocusScreen() {
             height={4}
             style={styles.progressBar}
           />
-          <Text style={styles.progressText}>{Math.round(progress * 100)}% of {currentMode.duration}m session</Text>
+          <Text style={styles.progressText}>
+            {Math.round(progress * 100)}% of {mode === 'pomodoro' ? prefs.workMinutes : currentMode.duration}m session
+          </Text>
         </View>
 
         {/* Controls */}
