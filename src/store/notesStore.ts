@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { notesService, Note, CreateNotePayload } from '../services/notes';
+import { notificationService } from '../services/notifications';
 
 interface NotesState {
   notes: Note[];
@@ -37,6 +38,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
   createNote: async (payload) => {
     const note = await notesService.create(payload);
     set((s) => ({ notes: [note, ...s.notes], activeNote: note }));
+    notificationService.notify('Note Created', payload.title || 'New note ready').catch(() => {});
     return note;
   },
 

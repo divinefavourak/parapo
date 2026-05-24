@@ -48,7 +48,7 @@ export const tasksService = {
   },
 
   async move(id: string, column: TaskColumn): Promise<Task> {
-    const { data } = await apiClient.patch<Task>(`/tasks/${id}/move`, { column });
+    const { data } = await apiClient.post<Task>(`/tasks/${id}/move`, { column });
     return data;
   },
 
@@ -57,7 +57,7 @@ export const tasksService = {
   },
 
   async complete(id: string): Promise<Task> {
-    const { data } = await apiClient.patch<Task>(`/tasks/${id}/complete`);
+    const { data } = await apiClient.post<Task>(`/tasks/${id}/complete`);
     return data;
   },
 

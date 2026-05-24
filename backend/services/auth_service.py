@@ -23,7 +23,18 @@ def hash_password(plain_password: str) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(_prepare(plain_password), hashed_password.encode())
+    hashed = hashed_password.encode()
+    # Current method: SHA-256 prehash before bcrypt
+    try:
+        if bcrypt.checkpw(_prepare(plain_password), hashed):
+            return True
+    except Exception:
+        pass
+    # Legacy fallback: plain bcrypt (accounts created before SHA-256 prehash)
+    try:
+        return bcrypt.checkpw(plain_password.encode()[:72], hashed)
+    except Exception:
+        return False
 
 
 # ── JWT ───────────────────────────────────────────────────────────────────────

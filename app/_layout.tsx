@@ -84,8 +84,8 @@ export default function RootLayout() {
                 <Stack.Screen name="onboarding" />
                 <Stack.Screen name="auth" />
                 <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="ai" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-                <Stack.Screen name="notes" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="ai/index" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+                <Stack.Screen name="notes/index" options={{ animation: 'slide_from_right' }} />
                 <Stack.Screen name="settings/profile" options={{ animation: 'slide_from_right' }} />
                 <Stack.Screen name="settings/notifications" options={{ animation: 'slide_from_right' }} />
                 <Stack.Screen name="settings/focus" options={{ animation: 'slide_from_right' }} />

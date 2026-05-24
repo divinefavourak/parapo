@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { FocusMode, FocusState } from '../features/focus/types';
 import { FOCUS_MODES } from '../features/focus/mockData';
 import { focusService, FocusSession } from '../services/focus';
-import { notificationService } from '../services/notifications';
+import { notificationService, showFocusTimerNotification, dismissFocusTimerNotification } from '../services/notifications';
 
 interface FocusPrefs {
   workMinutes: number;
@@ -123,19 +123,21 @@ export const useFocusStore = create<FocusStoreState>((set, get) => ({
         duration_minutes: durationMinutes,
       });
       set({ activeSessionId: session.id });
+      showFocusTimerNotification(sessionTitle || 'Focus Session', totalSeconds, true).catch(() => {});
     } catch {
-      // Continue locally even if backend fails
+      showFocusTimerNotification(sessionTitle || 'Focus Session', totalSeconds, true).catch(() => {});
     }
   },
 
   pause: () => {
     set({ state: 'paused' });
-    // Cancel scheduled notification since session is paused
     const { pendingNotificationId } = get();
     if (pendingNotificationId) {
       notificationService.cancelNotification(pendingNotificationId).catch(() => {});
       set({ pendingNotificationId: null });
     }
+    dismissFocusTimerNotification().catch(() => {});
+    notificationService.notify('⏸ Focus Paused', 'Session paused. Resume when ready.').catch(() => {});
   },
 
   resume: () => {
@@ -158,22 +160,31 @@ export const useFocusStore = create<FocusStoreState>((set, get) => ({
     if (activeSessionId && elapsedSeconds > 30) {
       focusService.abandonSession(activeSessionId, elapsedSeconds).catch(() => {});
     }
+    dismissFocusTimerNotification().catch(() => {});
     set({ state: 'idle', elapsedSeconds: 0, activeSessionId: null, pendingNotificationId: null });
   },
 
   tick: () => {
-    const { state, elapsedSeconds, totalSeconds } = get();
+    const { state, elapsedSeconds, totalSeconds, sessionTitle } = get();
     if (state !== 'running') return;
     if (elapsedSeconds >= totalSeconds) {
       get().onSessionComplete();
     } else {
-      set({ elapsedSeconds: elapsedSeconds + 1 });
+      const next = elapsedSeconds + 1;
+      set({ elapsedSeconds: next });
+      // Silently update the notification every 60 s — no banner, no sound
+      if (next % 60 === 0) {
+        const remaining = totalSeconds - next;
+        showFocusTimerNotification(sessionTitle || 'Focus Session', remaining, false).catch(() => {});
+      }
     }
   },
 
   onSessionComplete: async () => {
-    const { activeSessionId, totalSeconds } = get();
+    const { activeSessionId, totalSeconds, sessionTitle } = get();
     set({ state: 'break', elapsedSeconds: totalSeconds });
+
+    dismissFocusTimerNotification().catch(() => {});
 
     if (activeSessionId) {
       try {
@@ -181,7 +192,6 @@ export const useFocusStore = create<FocusStoreState>((set, get) => ({
       } catch {}
     }
 
-    // Refresh stats after completion
     get().fetchStats();
     set({ activeSessionId: null, pendingNotificationId: null });
   },

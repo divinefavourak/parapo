@@ -7,19 +7,82 @@ import { apiClient } from './api';
 const IS_EXPO_GO = Constants.appOwnership === 'expo';
 
 if (!IS_EXPO_GO) {
+  // Suppress banner/sound for focus timer updates so they never spam the shade.
+  // isUpdate=true means it's a silent refresh; isUpdate=false (or absent) plays normally.
   ExpoNotifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
+    handleNotification: async (notification) => {
+      const isSilentUpdate = notification.request.content.data?.isUpdate === true;
+      return {
+        shouldShowAlert: !isSilentUpdate,
+        shouldPlaySound: !isSilentUpdate,
+        shouldSetBadge: false,
+        shouldShowBanner: !isSilentUpdate,
+        shouldShowList: true,
+      };
+    },
   });
 }
 
-const noop = async () => {};
-const noopId = async (): Promise<string> => '';
+async function ensureActionsChannel() {
+  if (Platform.OS !== 'android' || IS_EXPO_GO) return;
+  await ExpoNotifications.setNotificationChannelAsync('actions', {
+    name: 'Action Confirmations',
+    importance: ExpoNotifications.AndroidImportance.DEFAULT,
+    sound: undefined,
+    vibrationPattern: [0, 100],
+  });
+}
+
+async function ensureFocusChannel() {
+  if (Platform.OS !== 'android' || IS_EXPO_GO) return;
+  await ExpoNotifications.setNotificationChannelAsync('focus_timer', {
+    name: 'Focus Timer',
+    importance: ExpoNotifications.AndroidImportance.LOW,
+    sound: undefined,
+    vibrationPattern: undefined,
+  });
+}
+
+let _focusTimerNotifId: string | null = null;
+
+// Shows or silently updates the single persistent focus countdown notification.
+// isInitial=true on session start (shows banner + sound), false for periodic updates (silent).
+export async function showFocusTimerNotification(
+  title: string,
+  remainingSeconds: number,
+  isInitial = false,
+): Promise<void> {
+  if (IS_EXPO_GO) return;
+  await ensureFocusChannel();
+
+  // Dismiss the previous entry from the shade before posting the new one.
+  if (_focusTimerNotifId) {
+    await ExpoNotifications.dismissNotificationAsync(_focusTimerNotifId).catch(() => {});
+  }
+
+  const mins = Math.floor(remainingSeconds / 60);
+  const secs = remainingSeconds % 60;
+  const countdown = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} remaining`;
+
+  _focusTimerNotifId = await ExpoNotifications.scheduleNotificationAsync({
+    content: {
+      title: `🎯 ${title}`,
+      body: countdown,
+      // isUpdate=true → handler suppresses banner and sound for this notification
+      data: { type: 'focus_timer', isUpdate: !isInitial },
+      sticky: true,
+      ...(Platform.OS === 'android' ? { channelId: 'focus_timer' } : {}),
+    },
+    trigger: null,
+  });
+}
+
+export async function dismissFocusTimerNotification(): Promise<void> {
+  if (!_focusTimerNotifId || IS_EXPO_GO) return;
+  await ExpoNotifications.dismissNotificationAsync(_focusTimerNotifId).catch(() => {});
+  await ExpoNotifications.cancelScheduledNotificationAsync(_focusTimerNotifId).catch(() => {});
+  _focusTimerNotifId = null;
+}
 
 export const notificationService = {
   async requestPermissions(): Promise<boolean> {
@@ -48,7 +111,7 @@ export const notificationService = {
     }
     try {
       const token = (await ExpoNotifications.getExpoPushTokenAsync()).data;
-      await apiClient.post('/notifications/token', { token, platform: Platform.OS });
+      await apiClient.post('/notifications/tokens', { token, platform: Platform.OS });
       return token;
     } catch {
       return null;
@@ -97,6 +160,20 @@ export const notificationService = {
         sound: 'default',
       },
       trigger: { type: ExpoNotifications.SchedulableTriggerInputTypes.DATE, date: triggerTime },
+    });
+  },
+
+  async notify(title: string, body: string, data?: Record<string, any>): Promise<void> {
+    if (IS_EXPO_GO) return;
+    await ensureActionsChannel();
+    await ExpoNotifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: data ?? {},
+        ...(Platform.OS === 'android' ? { channelId: 'actions' } : {}),
+      },
+      trigger: null,
     });
   },
 

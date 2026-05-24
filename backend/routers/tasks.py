@@ -146,6 +146,22 @@ def move_task(
     return TaskOut.model_validate(task)
 
 
+@router.post("/{task_id}/complete", response_model=TaskOut)
+def complete_task(
+    task_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TaskOut:
+    """Mark a task as completed and move it to the done column."""
+    task = _get_task_or_404(task_id, current_user.id, db)
+    task.is_completed = True
+    task.column = "done"
+    task.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(task)
+    return TaskOut.model_validate(task)
+
+
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(
     task_id: UUID,
