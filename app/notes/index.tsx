@@ -106,8 +106,10 @@ export default function NotesScreen() {
 
   const handleCreate = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const note = await createNote({ title: 'New Note', content: '' });
-    setActiveNote(note);
+    try {
+      const note = await createNote({ title: 'New Note', content: '' });
+      setActiveNote(note);
+    } catch {}
   };
 
   const pinned = notes.filter((n) => n.is_pinned);
@@ -161,7 +163,7 @@ export default function NotesScreen() {
             <NoteCard
               note={item}
               onPress={() => setActiveNote(item)}
-              onPin={() => pinNote(item.id)}
+              onPin={() => pinNote(item.id).catch(() => {})}
               onDelete={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 deleteNote(item.id);

@@ -28,6 +28,9 @@ export function createApiClient(): AxiosInstance {
     (res: AxiosResponse) => res,
     async (error) => {
       const original = error.config;
+      if (__DEV__ && error.response?.status) {
+        console.warn(`[API] ${error.response.status} ${original?.method?.toUpperCase()} ${original?.url}`);
+      }
       const isAuthRoute = original?.url?.startsWith('/auth/');
       if (error.response?.status !== 401 || original._retry || isAuthRoute) {
         return Promise.reject(error);

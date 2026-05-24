@@ -3,41 +3,79 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { Colors } from '../../src/constants/Colors';
-import { Typography } from '../../src/constants/Typography';
-import { Layout } from '../../src/constants/Spacing';
-import { TopBar } from '../../src/components/navigation/TopBar';
+import Svg, { Circle } from 'react-native-svg';
+import { RotateCcw, Play, Pause, Zap } from 'lucide-react-native';
 import { useFocusStore } from '../../src/store/focusStore';
 import { FOCUS_MODES } from '../../src/features/focus/mockData';
-import { ProgressBar } from '../../src/components/ui/ProgressBar';
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const P      = '#7C5CFC';
+const P_DIM  = 'rgba(124,92,252,0.15)';
+const CARD   = '#13131F';
+const BDR    = 'rgba(255,255,255,0.07)';
+const TEXT   = '#FFFFFF';
+const TEXT2  = '#8B8BAA';
+const TEXT3  = '#3D3D5C';
+const GREEN  = '#4ADE80';
 
 const KEEP_AWAKE_TAG = 'parapo-focus';
 
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+function fmt(s: number) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
 
+// ── Circular timer ring ───────────────────────────────────────────────────────
+function TimerRing({ progress, size = 240, stroke = 12 }: {
+  progress: number; size?: number; stroke?: number;
+}) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
+      <Circle cx={size/2} cy={size/2} r={r} stroke={BDR} strokeWidth={stroke} fill="none" />
+      <Circle
+        cx={size/2} cy={size/2} r={r}
+        stroke={P}
+        strokeWidth={stroke}
+        fill="none"
+        strokeDasharray={`${Math.max(0.01, progress) * c} ${c}`}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+function StatCard({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <View style={[styles.statCard, { borderColor: color + '30' }]}>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+// ── Main screen ────────────────────────────────────────────────────────────────
 export default function FocusScreen() {
   const insets = useSafeAreaInsets();
-  const { mode, state, elapsedSeconds, totalSeconds, sessionTitle, stats, prefs, setMode, setSessionTitle, start, pause, reset, tick, fetchStats, loadPrefs } = useFocusStore();
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const {
+    mode, state, elapsedSeconds, totalSeconds,
+    sessionTitle, stats, prefs,
+    setMode, setSessionTitle, start, pause, reset, tick, fetchStats, loadPrefs,
+  } = useFocusStore();
 
-  const progress = totalSeconds > 0 ? elapsedSeconds / totalSeconds : 0;
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const progress  = totalSeconds > 0 ? elapsedSeconds / totalSeconds : 0;
   const remaining = totalSeconds - elapsedSeconds;
 
-  useEffect(() => {
-    fetchStats();
-    loadPrefs();
-  }, []);
+  useEffect(() => { fetchStats(); loadPrefs(); }, []);
 
   useEffect(() => {
     if (state === 'running') {
       intervalRef.current = setInterval(tick, 1000);
-      if (prefs.keepScreenOn) {
-        activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
-      }
+      if (prefs.keepScreenOn) activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
       deactivateKeepAwake(KEEP_AWAKE_TAG);
@@ -51,47 +89,54 @@ export default function FocusScreen() {
   const currentMode = FOCUS_MODES.find((m) => m.key === mode) ?? FOCUS_MODES[1];
 
   return (
-    <View style={styles.container}>
-      <TopBar title="Focus Mode" subtitle="Deep work & performance" />
-
+    <View style={styles.root}>
       <ScrollView
-        style={styles.scroll}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: Layout.headerHeight + insets.top + 32, paddingBottom: 32 },
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Mode selector */}
-        <View style={styles.modeSelector}>
-          {FOCUS_MODES.map((m) => (
-            <TouchableOpacity
-              key={m.key}
-              style={[styles.modeChip, mode === m.key && styles.modeChipActive]}
-              onPress={() => {
-                if (state === 'idle') {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setMode(m.key);
-                }
-              }}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.modeLabel, mode === m.key && styles.modeLabelActive]}>{m.label}</Text>
-              <Text style={[styles.modeDesc, mode === m.key && styles.modeDescActive]}>
-                {m.key === 'pomodoro' ? `${prefs.workMinutes}m work, ${prefs.shortBreakMinutes}m rest` : m.description}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Focus Mode</Text>
+          <Text style={styles.headerSub}>Deep work & performance</Text>
         </View>
 
-        {/* Session title input — only shown when idle */}
+        {/* ── Mode pills ── */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {FOCUS_MODES.map((m) => {
+            const active = mode === m.key;
+            return (
+              <TouchableOpacity
+                key={m.key}
+                style={[styles.modePill, active && styles.modePillActive]}
+                onPress={() => {
+                  if (state === 'idle') {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setMode(m.key);
+                  }
+                }}
+                activeOpacity={0.75}
+              >
+                <Text style={[styles.modePillText, active && styles.modePillTextActive]}>{m.label}</Text>
+                <Text style={[styles.modePillSub, active && { color: P + 'aa' }]}>
+                  {m.key === 'pomodoro'
+                    ? `${prefs.workMinutes}m`
+                    : `${m.duration}m`}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* ── Session title ── */}
         {state === 'idle' && (
-          <View style={styles.sessionInputWrap}>
-            <Text style={styles.sessionInputLabel}>WHAT ARE YOU WORKING ON?</Text>
+          <View style={styles.inputWrap}>
             <TextInput
-              style={styles.sessionInputField}
-              placeholder="e.g. Q3 Strategic Review..."
-              placeholderTextColor={Colors.textDisabled}
+              style={styles.inputField}
+              placeholder="What are you working on?"
+              placeholderTextColor={TEXT3}
               value={sessionTitle}
               onChangeText={setSessionTitle}
               maxLength={60}
@@ -100,84 +145,74 @@ export default function FocusScreen() {
           </View>
         )}
 
-        {/* Timer display */}
-        <View style={styles.timerContainer}>
-          <View style={styles.timerRing}>
-            <View style={styles.timerInner}>
-              {state === 'break' ? (
-                <Text style={styles.breakLabel}>BREAK TIME</Text>
-              ) : (
-                <>
-                  <Text style={styles.timerText}>{formatTime(remaining)}</Text>
-                  <Text style={styles.timerSub}>{state === 'running' ? 'RUNNING' : state === 'paused' ? 'PAUSED' : 'READY'}</Text>
-                </>
-              )}
-            </View>
+        {/* ── Timer ring ── */}
+        <View style={styles.timerWrap}>
+          <TimerRing progress={progress} size={240} stroke={12} />
+          <View style={styles.timerInner}>
+            {state === 'break' ? (
+              <>
+                <Text style={[styles.timerTime, { color: GREEN }]}>🎉</Text>
+                <Text style={[styles.timerState, { color: GREEN }]}>BREAK TIME</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.timerTime}>{fmt(remaining)}</Text>
+                <Text style={styles.timerState}>
+                  {state === 'running' ? 'FOCUS' : state === 'paused' ? 'PAUSED' : 'READY'}
+                </Text>
+              </>
+            )}
+            {state !== 'idle' && sessionTitle.trim() !== '' && (
+              <Text style={styles.timerSession} numberOfLines={1}>{sessionTitle}</Text>
+            )}
           </View>
-          <ProgressBar
-            progress={progress}
-            color={Colors.accentBlue}
-            height={4}
-            style={styles.progressBar}
-          />
-          <Text style={styles.progressText}>
-            {Math.round(progress * 100)}% of {mode === 'pomodoro' ? prefs.workMinutes : currentMode.duration}m session
-          </Text>
         </View>
 
-        {/* Controls */}
+        {/* ── Controls ── */}
         <View style={styles.controls}>
           <TouchableOpacity
-            style={styles.resetBtn}
+            style={styles.secondaryBtn}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               reset();
             }}
             activeOpacity={0.75}
           >
-            <Text style={styles.resetIcon}>↺</Text>
+            <RotateCcw size={20} color={TEXT2} strokeWidth={1.8} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.mainBtn, state === 'running' ? styles.pauseBtn : styles.startBtn]}
+            style={[styles.primaryBtn, state === 'running' && styles.primaryBtnPause]}
             onPress={() => {
-              Haptics.impactAsync(
-                state === 'running'
-                  ? Haptics.ImpactFeedbackStyle.Light
-                  : Haptics.ImpactFeedbackStyle.Medium
-              );
+              Haptics.impactAsync(state === 'running'
+                ? Haptics.ImpactFeedbackStyle.Light
+                : Haptics.ImpactFeedbackStyle.Medium);
               state === 'running' ? pause() : start();
             }}
             activeOpacity={0.85}
           >
-            <Text style={styles.mainBtnText}>
-              {state === 'running' ? '⏸ Pause' : state === 'paused' ? '▶ Resume' : '▶ Start Focus'}
+            {state === 'running'
+              ? <Pause size={22} color="#fff" strokeWidth={2} />
+              : <Play size={22} color="#fff" strokeWidth={2} fill="#fff" />}
+            <Text style={styles.primaryBtnText}>
+              {state === 'running' ? 'Pause' : state === 'paused' ? 'Resume' : 'Start'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Session label — shows the title entered above */}
-        {state !== 'idle' && (
-          <View style={styles.sessionBadge}>
-            <Text style={styles.sessionBadgeText}>
-              {sessionTitle.trim() || 'Focus Session'}
-            </Text>
-          </View>
-        )}
-
-        {/* Stats grid */}
+        {/* ── Stats ── */}
         <View style={styles.statsGrid}>
-          <StatCard label="Today" value={`${stats.todayMinutes}m`} accent={Colors.accentBlue} />
-          <StatCard label="This Week" value={`${stats.weekSessions} sessions`} accent={Colors.accentPurple} />
-          <StatCard label="Streak" value={`${stats.currentStreak} day${stats.currentStreak !== 1 ? 's' : ''}`} accent={Colors.accentGreen} />
-          <StatCard label="Avg Session" value={`${stats.avgSessionMin}m`} accent={Colors.accentRed} />
+          <StatCard label="Today" value={`${stats.todayMinutes}m`} color={P} />
+          <StatCard label="This Week" value={`${stats.weekSessions} sessions`} color="#A78BFA" />
+          <StatCard label="Streak" value={`${stats.currentStreak}d`} color={GREEN} />
+          <StatCard label="Avg Session" value={`${stats.avgSessionMin}m`} color="#FB923C" />
         </View>
 
-        {/* Tip */}
+        {/* ── Tip ── */}
         <View style={styles.tipCard}>
-          <Text style={styles.tipIcon}>✦</Text>
+          <Zap size={16} color={P} strokeWidth={1.8} />
           <Text style={styles.tipText}>
-            Your peak focus window is 9–11am. Consider scheduling deep work sessions then.
+            Your peak focus window is 9–11 am. Schedule deep work then for best results.
           </Text>
         </View>
       </ScrollView>
@@ -185,200 +220,66 @@ export default function FocusScreen() {
   );
 }
 
-function StatCard({ label, value, accent }: { label: string; value: string; accent: string }) {
-  return (
-    <View style={[styles.statCard, { borderColor: accent + '30' }]}>
-      <Text style={[styles.statValue, { color: accent }]}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: Layout.screenPaddingH, gap: 24 },
+  root: { flex: 1, backgroundColor: '#0a0a0a' },
+  content: { paddingHorizontal: 20, gap: 24 },
 
-  modeSelector: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  modeChip: {
-    flex: 1,
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    padding: 12,
+  header: { gap: 4 },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: TEXT, letterSpacing: -0.3 },
+  headerSub: { fontSize: 13, color: TEXT2 },
+
+  modePill: {
+    backgroundColor: CARD, borderWidth: 1, borderColor: BDR,
+    borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10,
     alignItems: 'center',
   },
-  modeChipActive: {
-    borderColor: Colors.accentBlue,
-    backgroundColor: Colors.overlayBlue,
-  },
-  modeLabel: {
-    ...Typography.labelLarge,
-    color: Colors.textMuted,
-    fontWeight: '600',
-  },
-  modeLabelActive: { color: Colors.accentBlue },
-  modeDesc: {
-    ...Typography.labelSmall,
-    color: Colors.textDisabled,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  modeDescActive: { color: Colors.accentBlue + 'aa' },
+  modePillActive: { backgroundColor: P_DIM, borderColor: P },
+  modePillText: { fontSize: 13, fontWeight: '600', color: TEXT2 },
+  modePillTextActive: { color: P },
+  modePillSub: { fontSize: 10, color: TEXT3, marginTop: 2 },
 
-  sessionInputWrap: {
-    gap: 8,
-  },
-  sessionInputLabel: {
-    ...Typography.labelUppercase,
-    color: Colors.textMuted,
-    letterSpacing: 1.2,
-  },
-  sessionInputField: {
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    padding: 13,
-    color: Colors.textPrimary,
-    fontSize: 14,
+  inputWrap: {},
+  inputField: {
+    backgroundColor: CARD, borderWidth: 1, borderColor: BDR,
+    borderRadius: 14, padding: 14, color: TEXT, fontSize: 14,
   },
 
-  timerContainer: {
-    alignItems: 'center',
-    gap: 16,
-  },
-  timerRing: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    borderWidth: 8,
-    borderColor: Colors.bgSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.bgElevated,
-  },
+  timerWrap: { alignItems: 'center', justifyContent: 'center' },
   timerInner: {
-    alignItems: 'center',
+    position: 'absolute',
+    alignItems: 'center', gap: 4,
   },
-  timerText: {
-    fontSize: 52,
-    fontWeight: '700',
-    color: Colors.accentBlue,
-    letterSpacing: -2,
-  },
-  timerSub: {
-    ...Typography.labelUppercase,
-    color: Colors.textMuted,
-    marginTop: 4,
-    letterSpacing: 2,
-  },
-  breakLabel: {
-    ...Typography.h2,
-    color: Colors.accentGreen,
-    letterSpacing: 2,
-  },
-  progressBar: { width: '100%' },
-  progressText: {
-    ...Typography.labelMedium,
-    color: Colors.textMuted,
-  },
+  timerTime: { fontSize: 52, fontWeight: '700', color: TEXT, letterSpacing: -2 },
+  timerState: { fontSize: 11, fontWeight: '700', color: TEXT2, letterSpacing: 2.5 },
+  timerSession: { fontSize: 11, color: P, marginTop: 4, maxWidth: 160, textAlign: 'center' },
 
-  controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  secondaryBtn: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: CARD, borderWidth: 1, borderColor: BDR,
+    alignItems: 'center', justifyContent: 'center',
   },
-  resetBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+  primaryBtn: {
+    flex: 1, height: 52, borderRadius: 26,
+    backgroundColor: P, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  resetIcon: {
-    color: Colors.textMuted,
-    fontSize: 20,
-  },
-  mainBtn: {
-    flex: 1,
-    height: 52,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  startBtn: { backgroundColor: Colors.accentBlue },
-  pauseBtn: { backgroundColor: Colors.bgSubtle, borderWidth: 1, borderColor: Colors.border },
-  mainBtnText: {
-    ...Typography.labelLarge,
-    fontWeight: '700',
-    color: Colors.accentBlueDeeper,
-    fontSize: 15,
-  },
+  primaryBtnPause: { backgroundColor: CARD, borderWidth: 1, borderColor: BDR },
+  primaryBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 
-  sessionBadge: {
-    backgroundColor: Colors.overlayBlue,
-    borderWidth: 1,
-    borderColor: Colors.overlayBlueStrong,
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
-  },
-  sessionBadgeText: {
-    ...Typography.labelLarge,
-    color: Colors.accentBlue,
-    textAlign: 'center',
-  },
-
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   statCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
-    gap: 4,
+    flex: 1, minWidth: '45%', backgroundColor: CARD,
+    borderWidth: 1, borderRadius: 14, padding: 16, gap: 4,
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  statLabel: {
-    ...Typography.labelMedium,
-    color: Colors.textMuted,
-  },
+  statValue: { fontSize: 22, fontWeight: '700' },
+  statLabel: { fontSize: 12, color: TEXT2 },
 
   tipCard: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderColor: 'rgba(208,188,255,0.2)',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'flex-start',
+    flexDirection: 'row', gap: 10,
+    backgroundColor: CARD, borderWidth: 1, borderColor: P + '30',
+    borderRadius: 14, padding: 16, alignItems: 'flex-start',
   },
-  tipIcon: {
-    color: Colors.accentPurpleLight,
-    fontSize: 14,
-    marginTop: 2,
-  },
-  tipText: {
-    ...Typography.bodySmall,
-    color: Colors.textSecondary,
-    flex: 1,
-    lineHeight: 18,
-  },
+  tipText: { flex: 1, fontSize: 13, color: TEXT2, lineHeight: 19 },
 });

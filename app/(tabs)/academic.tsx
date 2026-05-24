@@ -5,54 +5,164 @@ import {
   ActivityIndicator, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Plus, X, BookOpen } from 'lucide-react-native';
+import { Plus, X, BookOpen, ChevronRight, TrendingUp } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { Colors } from '../../src/constants/Colors';
-import { Typography } from '../../src/constants/Typography';
-import { Layout } from '../../src/constants/Spacing';
-import { TopBar } from '../../src/components/navigation/TopBar';
-import { ProgressBar } from '../../src/components/ui/ProgressBar';
-import { Badge } from '../../src/components/ui/Badge';
+import Svg, { Circle } from 'react-native-svg';
 import { useAcademicStore } from '../../src/store/academicStore';
 import { Assignment, Course } from '../../src/features/academic/types';
 
-const PRIORITY_VARIANT: Record<string, 'blocker' | 'review' | 'neutral'> = {
-  high: 'blocker', medium: 'review', low: 'neutral',
-};
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const P      = '#7C5CFC';
+const P_DIM  = 'rgba(124,92,252,0.15)';
+const CARD   = '#13131F';
+const BDR    = 'rgba(255,255,255,0.07)';
+const TEXT   = '#FFFFFF';
+const TEXT2  = '#8B8BAA';
+const TEXT3  = '#3D3D5C';
+const GREEN  = '#4ADE80';
+const RED    = '#F87171';
 
 const COURSE_COLORS = [
-  '#adc6ff', '#a078ff', '#4edea3', '#ffb4ab',
-  '#ffd166', '#06d6a0', '#118ab2', '#ef476f',
+  '#60A5FA', '#A78BFA', '#34D399', '#F87171',
+  '#FBBF24', '#06B6D4', '#FB923C', '#F472B6',
 ];
 
-// ── Add Course Modal ─────────────────────────────────────────────────────────
-
-function AddCourseModal({ visible, onClose, onAdd }: {
-  visible: boolean;
-  onClose: () => void;
-  onAdd: (payload: any) => Promise<void>;
+// ── Mini circular ring ────────────────────────────────────────────────────────
+function MiniRing({ pct, size = 56, stroke = 5, color = P }: {
+  pct: number; size?: number; stroke?: number; color?: string;
 }) {
-  const [code, setCode] = useState('');
-  const [title, setTitle] = useState('');
-  const [instructor, setInstructor] = useState('');
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
+      <Circle cx={size/2} cy={size/2} r={r} stroke={BDR} strokeWidth={stroke} fill="none" />
+      <Circle
+        cx={size/2} cy={size/2} r={r}
+        stroke={color}
+        strokeWidth={stroke}
+        fill="none"
+        strokeDasharray={`${Math.max(0.01, pct) * c} ${c}`}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+// ── GPA Ring ──────────────────────────────────────────────────────────────────
+function GPARing({ value, target }: { value: number; target: number }) {
+  const pct = target > 0 ? Math.min(value / target, 1) : 0;
+  const size = 88, stroke = 7;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <View style={styles.gpaWrap}>
+      <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
+        <Circle cx={size/2} cy={size/2} r={r} stroke={BDR} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size/2} cy={size/2} r={r}
+          stroke={P}
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={`${Math.max(0.01, pct) * c} ${c}`}
+          strokeLinecap="round"
+        />
+      </Svg>
+      <View style={styles.gpaInner}>
+        <Text style={styles.gpaValue}>{(value || 0).toFixed(1)}</Text>
+        <Text style={styles.gpaLabel}>GPA</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── Course card ───────────────────────────────────────────────────────────────
+function CourseCard({ course, onDelete }: { course: Course; onDelete: () => void }) {
+  const color = course.color ?? P;
+  const pct   = Math.round((course.progress ?? 0) * 100);
+  return (
+    <View style={[styles.courseCard, { borderLeftColor: color }]}>
+      <View style={styles.courseLeft}>
+        <View style={[styles.courseCodeBadge, { backgroundColor: color + '20' }]}>
+          <Text style={[styles.courseCode, { color }]}>{course.code}</Text>
+        </View>
+        <View style={styles.courseInfo}>
+          <Text style={styles.courseTitle} numberOfLines={1}>{course.title}</Text>
+          <Text style={styles.courseInstructor}>
+            {course.instructor ? `${course.instructor} · ` : ''}{course.credits} cr
+          </Text>
+        </View>
+      </View>
+      <View style={styles.courseRight}>
+        <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
+          <MiniRing pct={course.progress ?? 0} size={52} stroke={4} color={color} />
+          <View style={styles.miniPctWrap}>
+            <Text style={[styles.miniPct, { color }]}>{pct}%</Text>
+          </View>
+        </View>
+        <TouchableOpacity onPress={onDelete} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <X size={13} color={TEXT3} strokeWidth={2} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ── Assignment row ────────────────────────────────────────────────────────────
+function AssignmentRow({ item, onSubmit }: { item: Assignment; onSubmit: () => void }) {
+  const done = item.status === 'submitted' || item.status === 'graded';
+  const priorityColor = item.priority === 'high' ? RED : item.priority === 'medium' ? '#FBBF24' : TEXT3;
+  return (
+    <TouchableOpacity
+      style={[styles.assignRow, done && { opacity: 0.55 }]}
+      onPress={!done ? onSubmit : undefined}
+      activeOpacity={0.8}
+    >
+      <View style={[styles.assignDot, { backgroundColor: done ? GREEN : priorityColor }]} />
+      <View style={styles.assignInfo}>
+        <Text style={[styles.assignTitle, done && { textDecorationLine: 'line-through', color: TEXT3 }]} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text style={styles.assignMeta}>{item.courseCode}{item.dueTimeLabel ? ` · ${item.dueTimeLabel}` : ''}</Text>
+      </View>
+      <View style={[styles.priorityBadge, { backgroundColor: priorityColor + '20' }]}>
+        <Text style={[styles.priorityText, { color: done ? GREEN : priorityColor }]}>
+          {done ? '✓ Done' : (item.priority ?? 'low').toUpperCase()}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ── Modal field ───────────────────────────────────────────────────────────────
+function Field({ label, ...props }: any) {
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput style={styles.fieldInput} placeholderTextColor={TEXT3} {...props} />
+    </View>
+  );
+}
+
+// ── Add Course Modal ──────────────────────────────────────────────────────────
+function AddCourseModal({ visible, onClose, onAdd }: {
+  visible: boolean; onClose: () => void; onAdd: (p: any) => Promise<void>;
+}) {
+  const [code, setCode]       = useState('');
+  const [title, setTitle]     = useState('');
+  const [instr, setInstr]     = useState('');
   const [credits, setCredits] = useState('3');
-  const [color, setColor] = useState(COURSE_COLORS[0]);
-  const [saving, setSaving] = useState(false);
+  const [color, setColor]     = useState(COURSE_COLORS[0]);
+  const [saving, setSaving]   = useState(false);
 
-  const reset = () => { setCode(''); setTitle(''); setInstructor(''); setCredits('3'); setColor(COURSE_COLORS[0]); };
-
-  const handleAdd = async () => {
+  const submit = async () => {
     if (!code.trim() || !title.trim()) return;
     setSaving(true);
     try {
-      await onAdd({ code: code.trim().toUpperCase(), title: title.trim(), instructor: instructor.trim(), credits: parseInt(credits) || 3, color });
-      reset();
+      await onAdd({ code: code.trim().toUpperCase(), title: title.trim(), instructor: instr.trim(), credits: parseInt(credits) || 3, color });
+      setCode(''); setTitle(''); setInstr(''); setCredits('3'); setColor(COURSE_COLORS[0]);
       onClose();
-    } catch {
-      Alert.alert('Error', 'Could not add course. Try again.');
-    } finally {
-      setSaving(false);
-    }
+    } catch { Alert.alert('Error', 'Could not add course.'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -60,14 +170,13 @@ function AddCourseModal({ visible, onClose, onAdd }: {
       <KeyboardAvoidingView style={styles.modalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>Add Course</Text>
-          <TouchableOpacity onPress={onClose}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose}><X size={20} color={TEXT2} /></TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
-          <ModalField label="Course Code *" value={code} onChangeText={setCode} placeholder="e.g. CSC 401" autoCapitalize="characters" />
-          <ModalField label="Course Title *" value={title} onChangeText={setTitle} placeholder="e.g. Advanced Algorithms" />
-          <ModalField label="Instructor" value={instructor} onChangeText={setInstructor} placeholder="e.g. Prof. Adeyemi" />
-          <ModalField label="Credits" value={credits} onChangeText={setCredits} placeholder="3" keyboardType="numeric" />
-
+          <Field label="Course Code *" value={code} onChangeText={setCode} placeholder="e.g. CSC 401" autoCapitalize="characters" />
+          <Field label="Course Title *" value={title} onChangeText={setTitle} placeholder="e.g. Advanced Algorithms" />
+          <Field label="Instructor" value={instr} onChangeText={setInstr} placeholder="e.g. Prof. Adeyemi" />
+          <Field label="Credits" value={credits} onChangeText={setCredits} placeholder="3" keyboardType="numeric" />
           <Text style={styles.fieldLabel}>Color</Text>
           <View style={styles.colorRow}>
             {COURSE_COLORS.map((c) => (
@@ -78,13 +187,12 @@ function AddCourseModal({ visible, onClose, onAdd }: {
               />
             ))}
           </View>
-
           <TouchableOpacity
-            style={[styles.modalBtn, (!code.trim() || !title.trim() || saving) && styles.modalBtnDisabled]}
-            onPress={handleAdd}
+            style={[styles.modalBtn, (!code.trim() || !title.trim() || saving) && { opacity: 0.4 }]}
+            onPress={submit}
             disabled={!code.trim() || !title.trim() || saving}
           >
-            {saving ? <ActivityIndicator color={Colors.bg} size="small" /> : <Text style={styles.modalBtnText}>Add Course</Text>}
+            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.modalBtnText}>Add Course</Text>}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -93,36 +201,27 @@ function AddCourseModal({ visible, onClose, onAdd }: {
 }
 
 // ── Add Assignment Modal ──────────────────────────────────────────────────────
-
 function AddAssignmentModal({ visible, courses, onClose, onAdd }: {
-  visible: boolean;
-  courses: Course[];
-  onClose: () => void;
-  onAdd: (payload: any) => Promise<void>;
+  visible: boolean; courses: Course[]; onClose: () => void; onAdd: (p: any) => Promise<void>;
 }) {
   const [courseId, setCourseId] = useState('');
-  const [title, setTitle] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
-  const [pct, setPct] = useState('10');
-  const [saving, setSaving] = useState(false);
+  const [title, setTitle]       = useState('');
+  const [dueDate, setDueDate]   = useState('');
+  const [priority, setPriority] = useState<'high'|'medium'|'low'>('medium');
+  const [pct, setPct]           = useState('10');
+  const [saving, setSaving]     = useState(false);
 
   useEffect(() => { if (courses.length > 0 && !courseId) setCourseId(courses[0].id); }, [courses]);
 
-  const reset = () => { setTitle(''); setDueDate(''); setPriority('medium'); setPct('10'); };
-
-  const handleAdd = async () => {
+  const submit = async () => {
     if (!title.trim() || !courseId) return;
     setSaving(true);
     try {
       await onAdd({ course_id: courseId, title: title.trim(), due_date: dueDate || null, priority, percent_of_grade: parseInt(pct) || 10 });
-      reset();
+      setTitle(''); setDueDate(''); setPriority('medium'); setPct('10');
       onClose();
-    } catch {
-      Alert.alert('Error', 'Could not add assignment. Try again.');
-    } finally {
-      setSaving(false);
-    }
+    } catch { Alert.alert('Error', 'Could not add assignment.'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -130,7 +229,7 @@ function AddAssignmentModal({ visible, courses, onClose, onAdd }: {
       <KeyboardAvoidingView style={styles.modalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>Add Assignment</Text>
-          <TouchableOpacity onPress={onClose}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose}><X size={20} color={TEXT2} /></TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
           <Text style={styles.fieldLabel}>Course *</Text>
@@ -139,39 +238,35 @@ function AddAssignmentModal({ visible, courses, onClose, onAdd }: {
               {courses.map((c) => (
                 <TouchableOpacity
                   key={c.id}
-                  style={[styles.chip, courseId === c.id && styles.chipActive]}
+                  style={[styles.chip, courseId === c.id && { backgroundColor: P_DIM, borderColor: P }]}
                   onPress={() => setCourseId(c.id)}
                 >
-                  <Text style={[styles.chipText, courseId === c.id && styles.chipTextActive]}>{c.code}</Text>
+                  <Text style={[styles.chipText, courseId === c.id && { color: P, fontWeight: '700' }]}>{c.code}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </ScrollView>
-
-          <ModalField label="Title *" value={title} onChangeText={setTitle} placeholder="e.g. Problem Set 3" />
-          <ModalField label="Due Date (YYYY-MM-DD)" value={dueDate} onChangeText={setDueDate} placeholder="2026-06-01" keyboardType="numeric" />
-
+          <Field label="Title *" value={title} onChangeText={setTitle} placeholder="e.g. Problem Set 3" />
+          <Field label="Due Date (YYYY-MM-DD)" value={dueDate} onChangeText={setDueDate} placeholder="2026-06-01" keyboardType="numeric" />
           <Text style={styles.fieldLabel}>Priority</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
             {(['high', 'medium', 'low'] as const).map((p) => (
               <TouchableOpacity
                 key={p}
-                style={[styles.chip, priority === p && styles.chipActive]}
+                style={[styles.chip, priority === p && { backgroundColor: P_DIM, borderColor: P }]}
                 onPress={() => setPriority(p)}
               >
-                <Text style={[styles.chipText, priority === p && styles.chipTextActive]}>{p}</Text>
+                <Text style={[styles.chipText, priority === p && { color: P, fontWeight: '700' }]}>{p}</Text>
               </TouchableOpacity>
             ))}
           </View>
-
-          <ModalField label="% of Grade" value={pct} onChangeText={setPct} placeholder="10" keyboardType="numeric" />
-
+          <Field label="% of Grade" value={pct} onChangeText={setPct} placeholder="10" keyboardType="numeric" />
           <TouchableOpacity
-            style={[styles.modalBtn, (!title.trim() || !courseId || saving) && styles.modalBtnDisabled]}
-            onPress={handleAdd}
+            style={[styles.modalBtn, (!title.trim() || !courseId || saving) && { opacity: 0.4 }]}
+            onPress={submit}
             disabled={!title.trim() || !courseId || saving}
           >
-            {saving ? <ActivityIndicator color={Colors.bg} size="small" /> : <Text style={styles.modalBtnText}>Add Assignment</Text>}
+            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.modalBtnText}>Add Assignment</Text>}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -179,281 +274,157 @@ function AddAssignmentModal({ visible, courses, onClose, onAdd }: {
   );
 }
 
-function ModalField({ label, value, onChangeText, placeholder, keyboardType, autoCapitalize }: any) {
-  return (
-    <View style={{ marginBottom: 14 }}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={styles.fieldInput}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={Colors.textDisabled}
-        keyboardType={keyboardType ?? 'default'}
-        autoCapitalize={autoCapitalize ?? 'sentences'}
-      />
-    </View>
-  );
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function GPARing({ value, target }: { value: number; target: number }) {
-  const pct = target > 0 ? Math.min(value / target, 1) : 0;
-  return (
-    <View style={styles.gpaRingWrap}>
-      <View style={styles.gpaRing}>
-        <Text style={styles.gpaValue}>{(value || 0).toFixed(1)}</Text>
-        <Text style={styles.gpaLabel}>GPA</Text>
-      </View>
-      <ProgressBar progress={pct} color={Colors.accentBlue} height={3} style={styles.gpaBar} />
-      <Text style={styles.gpaTarget}>Target: {(target || 0).toFixed(1)}</Text>
-    </View>
-  );
-}
-
-function CourseCard({ course, onDelete }: { course: Course; onDelete: () => void }) {
-  const color = course.color ?? '#4d8eff';
-  return (
-    <View style={styles.courseCard}>
-      <View style={[styles.courseAccent, { backgroundColor: color + '33' }]}>
-        <Text style={[styles.courseCode, { color }]}>{course.code}</Text>
-      </View>
-      <View style={styles.courseBody}>
-        <View style={styles.courseTop}>
-          <Text style={styles.courseTitle} numberOfLines={1}>{course.title}</Text>
-          <View style={[styles.gradeChip, { borderColor: color + '55' }]}>
-            <Text style={[styles.gradeText, { color }]}>{course.currentGrade ?? 'N/A'}</Text>
-          </View>
-        </View>
-        <Text style={styles.courseInstructor}>
-          {course.instructor ? `${course.instructor} · ` : ''}{course.credits} credits
-        </Text>
-        <ProgressBar progress={course.progress ?? 0} color={color} height={3} style={styles.courseProgress} />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={styles.courseProgressLabel}>
-            {Math.round((course.progress ?? 0) * 100)}% · {(course.gradePoint ?? 0).toFixed(1)} pts
-          </Text>
-          <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <X size={13} color={Colors.textDisabled} strokeWidth={2} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function AssignmentRow({ item, onSubmit }: { item: Assignment; onSubmit: () => void }) {
-  const isSubmitted = item.status === 'submitted' || item.status === 'graded';
-  return (
-    <TouchableOpacity
-      style={[styles.assignmentRow, isSubmitted && styles.assignmentRowDone]}
-      onPress={!isSubmitted ? onSubmit : undefined}
-      activeOpacity={0.8}
-    >
-      <View style={styles.assignmentLeft}>
-        <View style={[styles.assignmentDot, isSubmitted && styles.assignmentDotDone]} />
-        <View style={styles.assignmentInfo}>
-          <Text style={[styles.assignmentTitle, isSubmitted && styles.assignmentTitleDone]} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text style={styles.assignmentMeta}>{item.courseCode} · {item.dueTimeLabel ?? ''}</Text>
-        </View>
-      </View>
-      <View style={styles.assignmentRight}>
-        {!isSubmitted ? (
-          <Badge label={item.priority?.toUpperCase() ?? 'LOW'} variant={PRIORITY_VARIANT[item.priority ?? 'low']} />
-        ) : (
-          <Text style={styles.submittedLabel}>✓ Done</Text>
-        )}
-        <Text style={styles.assignmentWeight}>{item.percentOfGrade ?? 0}%</Text>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-// ── Main Screen ───────────────────────────────────────────────────────────────
-
+// ── Main screen ───────────────────────────────────────────────────────────────
 type SheetType = 'course' | 'assignment' | null;
 
 export default function AcademicScreen() {
   const insets = useSafeAreaInsets();
   const { data, isLoading, fetchData, submitAssignment, addCourse, addAssignment, deleteCourse } = useAcademicStore();
-  const { stats, courses, assignments, studyGoals, semesterLabel } = data;
-  const [showAllCourses, setShowAllCourses] = useState(false);
-  const [sheet, setSheet] = useState<SheetType>(null);
-  const [addMenuVisible, setAddMenuVisible] = useState(false);
+  const { stats, courses, assignments, semesterLabel } = data;
+
+  const [showAll, setShowAll] = useState(false);
+  const [sheet, setSheet]     = useState<SheetType>(null);
+  const [menu, setMenu]       = useState(false);
 
   useEffect(() => { fetchData(); }, []);
 
-  const visibleCourses = showAllCourses ? courses : courses.slice(0, 3);
-  const pendingAssignments = assignments.filter((a) => a.status === 'pending' || a.status === 'overdue');
-  const doneAssignments = assignments.filter((a) => a.status === 'submitted' || a.status === 'graded');
-  const totalAssignments = stats?.totalAssignments ?? 0;
-  const completedAssignments = stats?.completedAssignments ?? 0;
-  const assignmentProgress = totalAssignments > 0 ? completedAssignments / totalAssignments : 0;
+  const visible = showAll ? courses : courses.slice(0, 3);
+  const pending = assignments.filter((a) => a.status === 'pending' || a.status === 'overdue');
+  const done    = assignments.filter((a) => a.status === 'submitted' || a.status === 'graded');
+  const total   = stats?.totalAssignments ?? 0;
+  const complet = stats?.completedAssignments ?? 0;
 
   return (
-    <View style={styles.container}>
-      <TopBar
-        title="Academic Hub"
-        subtitle={semesterLabel ?? 'This Semester'}
-        rightAction={
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAddMenuVisible(true); }}
-          >
-            <Plus size={18} color={Colors.accentBlue} strokeWidth={2.5} />
-          </TouchableOpacity>
-        }
-      />
-
-      {/* Add menu sheet */}
-      <Modal visible={addMenuVisible} transparent animationType="fade" onRequestClose={() => setAddMenuVisible(false)}>
-        <TouchableOpacity style={styles.menuOverlay} onPress={() => setAddMenuVisible(false)} activeOpacity={1}>
-          <View style={[styles.menuSheet, { bottom: insets.bottom + 80 }]}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => { setAddMenuVisible(false); setSheet('course'); }}>
-              <BookOpen size={16} color={Colors.accentBlue} />
-              <Text style={styles.menuItemText}>Add Course</Text>
+    <View style={styles.root}>
+      {/* Add menu overlay */}
+      <Modal visible={menu} transparent animationType="fade" onRequestClose={() => setMenu(false)}>
+        <TouchableOpacity style={styles.menuOverlay} onPress={() => setMenu(false)} activeOpacity={1}>
+          <View style={styles.menuSheet}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenu(false); setSheet('course'); }}>
+              <BookOpen size={16} color={P} strokeWidth={1.8} />
+              <Text style={styles.menuText}>Add Course</Text>
             </TouchableOpacity>
-            <View style={styles.menuDivider} />
-            <TouchableOpacity style={styles.menuItem} onPress={() => { setAddMenuVisible(false); setSheet('assignment'); }}>
-              <Plus size={16} color={Colors.accentPurpleLight} />
-              <Text style={styles.menuItemText}>Add Assignment</Text>
+            <View style={{ height: 1, backgroundColor: BDR }} />
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenu(false); setSheet('assignment'); }}>
+              <Plus size={16} color="#A78BFA" strokeWidth={2} />
+              <Text style={styles.menuText}>Add Assignment</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
 
-      <AddCourseModal
-        visible={sheet === 'course'}
-        onClose={() => setSheet(null)}
-        onAdd={addCourse}
-      />
-      <AddAssignmentModal
-        visible={sheet === 'assignment'}
-        courses={courses}
-        onClose={() => setSheet(null)}
-        onAdd={addAssignment}
-      />
+      <AddCourseModal visible={sheet === 'course'} onClose={() => setSheet(null)} onAdd={addCourse} />
+      <AddAssignmentModal visible={sheet === 'assignment'} courses={courses} onClose={() => setSheet(null)} onAdd={addAssignment} />
 
       <ScrollView
-        style={styles.scroll}
         contentContainerStyle={[
           styles.content,
-          { paddingTop: Layout.headerHeight + insets.top + 24, paddingBottom: 32 },
+          { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>Academic Hub</Text>
+            <Text style={styles.headerSub}>{semesterLabel ?? 'This Semester'}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setMenu(true); }}
+          >
+            <Plus size={18} color="#fff" strokeWidth={2.5} />
+          </TouchableOpacity>
+        </View>
+
         {isLoading && courses.length === 0 ? (
           <View style={{ padding: 40, alignItems: 'center' }}>
-            <ActivityIndicator color={Colors.accentBlue} />
+            <ActivityIndicator color={P} />
           </View>
         ) : (
           <>
-            {/* Semester overview */}
+            {/* ── Semester overview card ── */}
             <View style={styles.overviewCard}>
-              <GPARing value={stats?.currentGPA ?? 0} target={stats?.targetGPA ?? 4.5} />
-              <View style={styles.overviewStats}>
-                <StatBox label={`Credits\nDone`} value={stats?.creditsCompleted ?? 0} />
-                <View style={styles.overviewDivider} />
-                <StatBox label={`Credits\nEnrolled`} value={stats?.creditsEnrolled ?? 0} />
-                <View style={styles.overviewDivider} />
-                <StatBox label={`Study Hrs\nThis Week`} value={`${stats?.studyHoursThisWeek ?? 0}h`} color={Colors.accentGreen} />
+              <View style={styles.gpaSection}>
+                <GPARing value={stats?.currentGPA ?? 0} target={stats?.targetGPA ?? 4.5} />
+                <Text style={styles.gpaTarget}>Target: {(stats?.targetGPA ?? 4.5).toFixed(1)}</Text>
+              </View>
+              <View style={styles.statsCol}>
+                <StatBox label="Credits Done" value={stats?.creditsCompleted ?? 0} color={P} />
+                <View style={{ height: 1, backgroundColor: BDR }} />
+                <StatBox label="Enrolled" value={stats?.creditsEnrolled ?? 0} color={TEXT2} />
+                <View style={{ height: 1, backgroundColor: BDR }} />
+                <StatBox label="Study Hrs" value={`${stats?.studyHoursThisWeek ?? 0}h`} color="#4ADE80" />
               </View>
             </View>
 
-            {/* Assignment progress */}
-            <View style={styles.progressBanner}>
-              <View style={styles.progressBannerTop}>
-                <Text style={styles.progressBannerTitle}>Assignment Progress</Text>
-                <Text style={styles.progressBannerCount}>{completedAssignments}/{totalAssignments} complete</Text>
+            {/* ── Assignment progress banner ── */}
+            {total > 0 && (
+              <View style={styles.progressBanner}>
+                <View style={styles.progressBannerTop}>
+                  <View style={styles.progressIcon}>
+                    <TrendingUp size={14} color={GREEN} strokeWidth={2} />
+                  </View>
+                  <Text style={styles.progressBannerTitle}>Assignment Progress</Text>
+                  <Text style={[styles.progressBannerCount, { color: GREEN }]}>{complet}/{total}</Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${(complet / total) * 100}%`, backgroundColor: GREEN }]} />
+                </View>
               </View>
-              <ProgressBar progress={assignmentProgress} color={Colors.accentGreen} height={6} />
-            </View>
+            )}
 
-            {/* Courses */}
+            {/* ── Courses ── */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Courses</Text>
                 {courses.length > 3 && (
-                  <TouchableOpacity onPress={() => setShowAllCourses((v) => !v)}>
-                    <Text style={styles.seeAll}>{showAllCourses ? 'Show less' : `See all ${courses.length}`}</Text>
+                  <TouchableOpacity onPress={() => setShowAll((v) => !v)}>
+                    <Text style={styles.seeAll}>{showAll ? 'Show less' : `See all ${courses.length}`}</Text>
                   </TouchableOpacity>
                 )}
               </View>
               {courses.length === 0 ? (
                 <View style={styles.emptyCard}>
-                  <Text style={styles.emptyCardText}>No courses yet — tap + to add one</Text>
+                  <BookOpen size={24} color={TEXT3} strokeWidth={1.5} />
+                  <Text style={styles.emptyText}>No courses yet — tap + to add one</Text>
                 </View>
               ) : (
-                <View style={styles.courseList}>
-                  {visibleCourses.map((course) => (
-                    <CourseCard
-                      key={course.id}
-                      course={course}
-                      onDelete={() => deleteCourse(course.id)}
-                    />
-                  ))}
-                </View>
+                visible.map((c) => (
+                  <CourseCard key={c.id} course={c} onDelete={() => deleteCourse(c.id)} />
+                ))
               )}
             </View>
 
-            {/* Upcoming assignments */}
+            {/* ── Assignments ── */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Upcoming</Text>
-                <View style={styles.urgentBadge}>
-                  <Text style={styles.urgentBadgeText}>{pendingAssignments.length} PENDING</Text>
-                </View>
+                {pending.length > 0 && (
+                  <View style={[styles.badge, { backgroundColor: RED + '20' }]}>
+                    <Text style={[styles.badgeText, { color: RED }]}>{pending.length} PENDING</Text>
+                  </View>
+                )}
               </View>
-              {pendingAssignments.length === 0 ? (
+              {pending.length === 0 ? (
                 <View style={styles.emptyCard}>
-                  <Text style={styles.emptyCardText}>No pending assignments</Text>
+                  <Text style={styles.emptyText}>No pending assignments</Text>
                 </View>
               ) : (
-                <View style={styles.assignmentList}>
-                  {pendingAssignments.map((item) => (
-                    <AssignmentRow key={item.id} item={item} onSubmit={() => submitAssignment(item.id)} />
+                <View style={styles.assignList}>
+                  {pending.map((a) => (
+                    <AssignmentRow key={a.id} item={a} onSubmit={() => submitAssignment(a.id)} />
                   ))}
                 </View>
               )}
-              {doneAssignments.length > 0 && (
-                <>
-                  <Text style={styles.completedHeader}>Completed</Text>
-                  <View style={[styles.assignmentList, { opacity: 0.65 }]}>
-                    {doneAssignments.map((item) => (
-                      <AssignmentRow key={item.id} item={item} onSubmit={() => {}} />
-                    ))}
-                  </View>
-                </>
+              {done.length > 0 && (
+                <View style={[styles.assignList, { opacity: 0.6, marginTop: 10 }]}>
+                  {done.map((a) => (
+                    <AssignmentRow key={a.id} item={a} onSubmit={() => {}} />
+                  ))}
+                </View>
               )}
             </View>
-
-            {/* Study goals */}
-            {studyGoals.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Study Goals · This Week</Text>
-                <View style={styles.goalList}>
-                  {studyGoals.map((goal) => {
-                    const pct = goal.targetHours > 0 ? Math.min(goal.completedHours / goal.targetHours, 1) : 0;
-                    const done = goal.completedHours >= goal.targetHours;
-                    return (
-                      <View key={goal.id} style={styles.goalRow}>
-                        <View style={styles.goalLeft}>
-                          <Text style={[styles.goalLabel, done && styles.goalLabelDone]}>{goal.label}</Text>
-                          <Text style={styles.goalHours}>{goal.completedHours}h / {goal.targetHours}h</Text>
-                        </View>
-                        <View style={styles.goalRight}>
-                          <ProgressBar progress={pct} color={done ? Colors.accentGreen : Colors.accentBlue} height={4} style={styles.goalBar} />
-                          {done && <Text style={styles.goalDoneIcon}>✓</Text>}
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
           </>
         )}
       </ScrollView>
@@ -461,166 +432,133 @@ export default function AcademicScreen() {
   );
 }
 
-function StatBox({ label, value, color }: { label: string; value: number | string; color?: string }) {
+function StatBox({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (
-    <View style={styles.overviewStat}>
-      <Text style={[styles.overviewStatValue, color ? { color } : {}]}>{value}</Text>
-      <Text style={styles.overviewStatLabel}>{label}</Text>
+    <View style={{ padding: 12, alignItems: 'center' }}>
+      <Text style={{ fontSize: 18, fontWeight: '700', color }}>{value}</Text>
+      <Text style={{ fontSize: 10, color: TEXT2, marginTop: 2, textAlign: 'center' }}>{label}</Text>
     </View>
   );
 }
 
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: Layout.screenPaddingH, gap: 20 },
-  addBtn: { padding: 6 },
+  root: { flex: 1, backgroundColor: '#0a0a0a' },
+  content: { paddingHorizontal: 20, gap: 20 },
+
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: TEXT, letterSpacing: -0.3 },
+  headerSub: { fontSize: 13, color: TEXT2, marginTop: 2 },
+  addBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: P, alignItems: 'center', justifyContent: 'center',
+  },
 
   // Overview
   overviewCard: {
-    backgroundColor: Colors.bgElevated, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 12, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 20,
+    backgroundColor: CARD, borderRadius: 20, borderWidth: 1, borderColor: BDR,
+    flexDirection: 'row', padding: 20, gap: 16, alignItems: 'center',
   },
-  gpaRingWrap: { alignItems: 'center', gap: 6 },
-  gpaRing: {
-    width: 84, height: 84, borderRadius: 42, borderWidth: 5,
-    borderColor: Colors.accentBlueDark, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.bgSurface,
+  gpaSection: { alignItems: 'center', gap: 6 },
+  gpaWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  gpaInner: { position: 'absolute', alignItems: 'center' },
+  gpaValue: { fontSize: 20, fontWeight: '700', color: P },
+  gpaLabel: { fontSize: 10, color: TEXT2, fontWeight: '600' },
+  gpaTarget: { fontSize: 10, color: TEXT3 },
+  statsCol: {
+    flex: 1, backgroundColor: '#0a0a0a', borderRadius: 14,
+    borderWidth: 1, borderColor: BDR, overflow: 'hidden',
   },
-  gpaValue: { fontSize: 22, fontWeight: '700', color: Colors.accentBlue, letterSpacing: -0.5 },
-  gpaLabel: { ...Typography.labelSmall, color: Colors.textMuted, marginTop: 1 },
-  gpaBar: { width: 84 },
-  gpaTarget: { ...Typography.labelSmall, color: Colors.textDisabled },
-  overviewStats: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  overviewStat: { alignItems: 'center', flex: 1, gap: 4 },
-  overviewStatValue: { fontSize: 20, fontWeight: '700', color: Colors.accentBlue },
-  overviewStatLabel: { ...Typography.labelSmall, color: Colors.textMuted, textAlign: 'center' },
-  overviewDivider: { width: 1, height: 36, backgroundColor: Colors.borderSubtle },
 
   // Progress banner
   progressBanner: {
-    backgroundColor: Colors.bgElevated, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 8, padding: 16, gap: 10,
+    backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BDR, padding: 14, gap: 10,
   },
-  progressBannerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  progressBannerTitle: { ...Typography.labelLarge, color: Colors.textPrimary, fontWeight: '600' },
-  progressBannerCount: { ...Typography.labelMedium, color: Colors.accentGreen, fontWeight: '600' },
+  progressBannerTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progressIcon: {
+    width: 28, height: 28, borderRadius: 8, backgroundColor: GREEN + '20',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  progressBannerTitle: { fontSize: 14, fontWeight: '600', color: TEXT, flex: 1 },
+  progressBannerCount: { fontSize: 13, fontWeight: '700' },
+  progressTrack: {
+    height: 6, backgroundColor: BDR, borderRadius: 3, overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 3 },
 
   // Sections
-  section: { gap: 12 },
+  section: { gap: 10 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { ...Typography.h3, color: Colors.textPrimary },
-  seeAll: { ...Typography.labelMedium, color: Colors.accentBlue },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: TEXT },
+  seeAll: { fontSize: 13, color: P, fontWeight: '500' },
   emptyCard: {
-    backgroundColor: Colors.bgElevated, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 8, padding: 20, alignItems: 'center',
+    backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BDR,
+    padding: 24, alignItems: 'center', gap: 8,
   },
-  emptyCardText: { ...Typography.bodySmall, color: Colors.textMuted },
-  urgentBadge: {
-    backgroundColor: Colors.overlayRed, borderWidth: 1, borderColor: Colors.overlayRedStrong,
-    borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4,
-  },
-  urgentBadgeText: { ...Typography.labelSmall, color: Colors.accentRed, fontWeight: '700', letterSpacing: 0.8 },
+  emptyText: { fontSize: 13, color: TEXT2 },
+  badge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
+  badgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
 
   // Courses
-  courseList: { gap: 10 },
   courseCard: {
-    backgroundColor: Colors.bgElevated, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 10, overflow: 'hidden', flexDirection: 'row',
+    backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BDR,
+    flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12,
+    borderLeftWidth: 3,
   },
-  courseAccent: { width: 64, alignItems: 'center', justifyContent: 'center', padding: 10 },
-  courseCode: { ...Typography.labelSmall, fontWeight: '700', textAlign: 'center', letterSpacing: 0.4 },
-  courseBody: { flex: 1, padding: 14, gap: 4 },
-  courseTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  courseTitle: { ...Typography.labelLarge, color: Colors.textPrimary, fontWeight: '600', flex: 1 },
-  gradeChip: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 },
-  gradeText: { ...Typography.labelSmall, fontWeight: '700' },
-  courseInstructor: { ...Typography.bodySmall, color: Colors.textMuted },
-  courseProgress: { marginTop: 4 },
-  courseProgressLabel: { ...Typography.labelSmall, color: Colors.textDisabled, marginTop: 2 },
+  courseLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  courseCodeBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, alignItems: 'center' },
+  courseCode: { fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
+  courseInfo: { flex: 1 },
+  courseTitle: { fontSize: 14, fontWeight: '600', color: TEXT },
+  courseInstructor: { fontSize: 11, color: TEXT2, marginTop: 2 },
+  courseRight: { alignItems: 'center', gap: 6 },
+  miniPctWrap: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  miniPct: { fontSize: 10, fontWeight: '700' },
 
   // Assignments
-  assignmentList: {
-    backgroundColor: Colors.bgElevated, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 8, overflow: 'hidden',
+  assignList: {
+    backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BDR, overflow: 'hidden',
   },
-  assignmentRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle, gap: 12,
-  },
-  assignmentRowDone: { opacity: 0.7 },
-  assignmentLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  assignmentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.accentRed, flexShrink: 0 },
-  assignmentDotDone: { backgroundColor: Colors.accentGreen },
-  assignmentInfo: { flex: 1 },
-  assignmentTitle: { ...Typography.labelLarge, color: Colors.textPrimary, fontWeight: '500' },
-  assignmentTitleDone: { color: Colors.textMuted, textDecorationLine: 'line-through' },
-  assignmentMeta: { ...Typography.labelSmall, color: Colors.textMuted, marginTop: 2 },
-  assignmentRight: { alignItems: 'flex-end', gap: 4, flexShrink: 0 },
-  assignmentWeight: { ...Typography.labelSmall, color: Colors.textDisabled },
-  submittedLabel: { ...Typography.labelSmall, color: Colors.accentGreen, fontWeight: '600' },
-  completedHeader: {
-    ...Typography.labelUppercase, color: Colors.textDisabled,
-    letterSpacing: 1, paddingHorizontal: 4, marginTop: 4,
-  },
-
-  // Goals
-  goalList: {
-    backgroundColor: Colors.bgElevated, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 8, overflow: 'hidden',
-  },
-  goalRow: {
+  assignRow: {
     flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle,
+    borderBottomWidth: 1, borderBottomColor: BDR,
   },
-  goalLeft: { flex: 1, gap: 2 },
-  goalLabel: { ...Typography.labelLarge, color: Colors.textPrimary, fontWeight: '500' },
-  goalLabelDone: { color: Colors.accentGreen },
-  goalHours: { ...Typography.labelSmall, color: Colors.textMuted },
-  goalRight: { width: 100, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  goalBar: { flex: 1 },
-  goalDoneIcon: { color: Colors.accentGreen, fontSize: 12, fontWeight: '700' },
+  assignDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  assignInfo: { flex: 1 },
+  assignTitle: { fontSize: 14, fontWeight: '600', color: TEXT },
+  assignMeta: { fontSize: 11, color: TEXT2, marginTop: 2 },
+  priorityBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  priorityText: { fontSize: 10, fontWeight: '700' },
 
   // Modal
-  modalRoot: { flex: 1, backgroundColor: Colors.bg },
+  modalRoot: { flex: 1, backgroundColor: '#0a0a0a' },
   modalHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 20, paddingTop: 56, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    padding: 20, paddingTop: 56, borderBottomWidth: 1, borderBottomColor: BDR,
   },
-  modalTitle: { ...Typography.h2, color: Colors.textPrimary, fontWeight: '700' },
-  modalBody: { padding: 20, gap: 4 },
-  fieldLabel: { ...Typography.labelMedium, color: Colors.textMuted, fontWeight: '600', marginBottom: 6 },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: TEXT },
+  modalBody: { padding: 20 },
+  fieldLabel: { fontSize: 11, fontWeight: '700', color: TEXT2, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 },
   fieldInput: {
-    backgroundColor: Colors.bgElevated, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 8, paddingHorizontal: 14, paddingVertical: 12,
-    color: Colors.textPrimary, fontSize: 14,
+    backgroundColor: CARD, borderWidth: 1, borderColor: BDR,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, color: TEXT, fontSize: 14,
   },
   colorRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 20 },
   colorDot: { width: 32, height: 32, borderRadius: 16 },
-  colorDotActive: { borderWidth: 3, borderColor: Colors.textPrimary },
+  colorDotActive: { borderWidth: 3, borderColor: TEXT },
   chip: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 6,
-    paddingHorizontal: 14, paddingVertical: 8, backgroundColor: Colors.bgElevated,
+    borderWidth: 1, borderColor: BDR, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 8, backgroundColor: CARD,
   },
-  chipActive: { backgroundColor: Colors.overlayBlue, borderColor: Colors.accentBlue },
-  chipText: { ...Typography.labelMedium, color: Colors.textMuted, fontWeight: '500' },
-  chipTextActive: { color: Colors.accentBlue, fontWeight: '700' },
-  modalBtn: {
-    backgroundColor: Colors.accentBlue, borderRadius: 8,
-    padding: 16, alignItems: 'center', marginTop: 8,
-  },
-  modalBtnDisabled: { backgroundColor: Colors.bgSubtle },
-  modalBtnText: { ...Typography.labelLarge, color: Colors.bg, fontWeight: '700' },
+  chipText: { fontSize: 13, color: TEXT2, fontWeight: '500' },
+  modalBtn: { backgroundColor: P, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8 },
+  modalBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 
-  // Add menu
-  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  // Menu
+  menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', padding: 20 },
   menuSheet: {
-    position: 'absolute', right: 20,
-    backgroundColor: Colors.bgElevated, borderRadius: 12,
-    borderWidth: 1, borderColor: Colors.border,
-    overflow: 'hidden', minWidth: 200,
+    backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BDR, overflow: 'hidden',
   },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
-  menuItemText: { ...Typography.labelLarge, color: Colors.textPrimary, fontWeight: '500' },
-  menuDivider: { height: 1, backgroundColor: Colors.border },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
+  menuText: { fontSize: 15, fontWeight: '500', color: TEXT },
 });

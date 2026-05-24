@@ -20,16 +20,17 @@ export const useLeadershipStore = create<LeadershipState>((set, get) => ({
 
   fetchAll: async () => {
     set({ isLoading: true });
-    try {
-      const [teamMembers, meetings, delegations] = await Promise.all([
-        leadershipService.getTeamMembers(),
-        leadershipService.getMeetings(),
-        leadershipService.getDelegations(),
-      ]);
-      set({ teamMembers, meetings, delegations, isLoading: false });
-    } catch {
-      set({ isLoading: false });
-    }
+    const [r0, r1, r2] = await Promise.allSettled([
+      leadershipService.getTeamMembers(),
+      leadershipService.getMeetings(),
+      leadershipService.getDelegations(),
+    ]);
+    set({
+      ...(r0.status === 'fulfilled' ? { teamMembers: r0.value } : {}),
+      ...(r1.status === 'fulfilled' ? { meetings: r1.value } : {}),
+      ...(r2.status === 'fulfilled' ? { delegations: r2.value } : {}),
+      isLoading: false,
+    });
   },
 
   updateDelegation: async (id, updates) => {

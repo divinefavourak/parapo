@@ -33,6 +33,7 @@
     "expo-status-bar": "~3.0.9",
     "lucide-react-native": "^1.16.0",
     "nativewind": "5.0.0-preview.2",
+    "phosphor-react-native": "^3.0.6",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-css": "^0.0.0-nightly.5ce6396",

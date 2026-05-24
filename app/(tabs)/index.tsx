@@ -1,197 +1,343 @@
-import React, { useEffect, useState } from 'react';
-import { ScrollView, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import React, { useMemo } from 'react';
+import {
+  ScrollView, View, Text, TouchableOpacity,
+  StyleSheet, Dimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { Colors } from '../../src/constants/Colors';
-import { Layout } from '../../src/constants/Spacing';
-import { TopBar } from '../../src/components/navigation/TopBar';
-import { Avatar } from '../../src/components/ui/Avatar';
-import { AIBriefingCard } from '../../src/components/dashboard/AIBriefingCard';
-import { ProductivityScore } from '../../src/components/dashboard/ProductivityScore';
-import { TodaysFocusCard } from '../../src/components/dashboard/TodaysFocusCard';
-import { UrgentTasksCard } from '../../src/components/dashboard/UrgentTasksCard';
-import { MeetingPulseCard } from '../../src/components/dashboard/MeetingPulseCard';
-import { mockDashboardData } from '../../src/features/dashboard/mockData';
+import Svg, { Circle } from 'react-native-svg';
+import { Bell, ChevronRight, Timer, BookOpen, Zap, FileText } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
+import { useTaskStore } from '../../src/store/taskStore';
 
-function getGreeting(name?: string): string {
-  const hour = new Date().getHours();
-  const prefix = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  return name ? `${prefix}, ${name.split(' ')[0]}` : prefix;
-}
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const P      = '#7C5CFC';
+const P_DIM  = 'rgba(124,92,252,0.15)';
+const CARD   = '#13131F';
+const CARD2  = '#1A1A2E';
+const BDR    = 'rgba(255,255,255,0.07)';
+const TEXT   = '#FFFFFF';
+const TEXT2  = '#8B8BAA';
+const TEXT3  = '#3D3D5C';
+const GREEN  = '#4ADE80';
+const ORANGE = '#FB923C';
 
-export default function DashboardScreen() {
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const { user } = useAuthStore();
-  const [fabOpen, setFabOpen] = useState(false);
+const W = Dimensions.get('window').width;
 
-  const greeting = getGreeting(user?.full_name);
-  const initials = user?.full_name
-    ? user.full_name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
-    : 'U';
+const CATEGORY_COLORS: Record<string, string> = {
+  Logistics: '#60A5FA',
+  Finance:   '#F87171',
+  Review:    '#A78BFA',
+  Creative:  '#34D399',
+  Engagement:'#FBBF24',
+};
 
-  const displayTasks = mockDashboardData.urgentTasks;
-
+// ── Circular progress ring ─────────────────────────────────────────────────────
+function Ring({ pct, size = 110, stroke = 10, color = '#fff' }: {
+  pct: number; size?: number; stroke?: number; color?: string;
+}) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
   return (
-    <View style={styles.container}>
-      <TopBar
-        title="Command Center"
-        subtitle={greeting}
-        showLogo
-        rightAction={
-          <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.searchBtn} onPress={() => router.push('/ai')}>
-              <Text style={styles.searchIcon}>✦</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.avatarBtn}
-              onPress={() => router.push('/profile')}
-              activeOpacity={0.8}
-            >
-              <Avatar initials={initials} size={32} color={Colors.accentBlueDark} />
-            </TouchableOpacity>
-          </View>
-        }
+    <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
+      <Circle cx={size/2} cy={size/2} r={r} stroke="rgba(255,255,255,0.18)" strokeWidth={stroke} fill="none" />
+      <Circle
+        cx={size/2} cy={size/2} r={r}
+        stroke={color}
+        strokeWidth={stroke}
+        fill="none"
+        strokeDasharray={`${Math.max(0.01, pct) * c} ${c}`}
+        strokeLinecap="round"
       />
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: Layout.headerHeight + insets.top + 24, paddingBottom: 100 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Top section: AI Briefing + Productivity Score */}
-        <View style={styles.section}>
-          <AIBriefingCard data={mockDashboardData.aiBriefing} />
-          <ProductivityScore score={mockDashboardData.productivityScore} delta={mockDashboardData.productivityDelta} />
-        </View>
-
-        {/* Today's Focus */}
-        <TodaysFocusCard session={mockDashboardData.focusSession} />
-
-        {/* Urgent Tasks */}
-        <UrgentTasksCard tasks={displayTasks} />
-
-        {/* Meeting Pulse */}
-        <MeetingPulseCard meeting={mockDashboardData.nextMeeting} />
-      </ScrollView>
-
-      {/* FAB */}
-      <View style={[styles.fabArea, { bottom: 80 + insets.bottom }]}>
-        {fabOpen && (
-          <View style={styles.fabMenu}>
-            <TouchableOpacity
-              style={styles.fabMenuItem}
-              onPress={() => { setFabOpen(false); router.push('/notes'); }}
-            >
-              <Text style={styles.fabMenuIcon}>✎</Text>
-              <Text style={styles.fabMenuText}>New Note</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.fabMenuItem}
-              onPress={() => { setFabOpen(false); router.push('/ai'); }}
-            >
-              <Text style={styles.fabMenuIcon}>✦</Text>
-              <Text style={styles.fabMenuText}>Ask AI</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        <TouchableOpacity
-          style={styles.fab}
-          activeOpacity={0.85}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setFabOpen((v) => !v);
-          }}
-        >
-          <Text style={styles.fabIcon}>{fabOpen ? '✕' : '+'}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </Svg>
   );
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function todayLabel() {
+  return new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function getGreeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+
+// ── Main screen ────────────────────────────────────────────────────────────────
+export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { user } = useAuthStore();
+  const { tasks } = useTaskStore();
+
+  const firstName = user?.full_name?.split(' ')[0] ?? 'there';
+  const initials  = user?.full_name
+    ? user.full_name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase()
+    : 'U';
+
+  const total    = tasks.length;
+  const done     = tasks.filter((t) => t.column === 'done').length;
+  const inProg   = tasks.filter((t) => t.column === 'in_progress');
+  const progress = total > 0 ? done / total : 0;
+
+  const groups = useMemo(() => {
+    const map: Record<string, { total: number; done: number }> = {};
+    tasks.forEach((t) => {
+      if (!map[t.category]) map[t.category] = { total: 0, done: 0 };
+      map[t.category].total++;
+      if (t.column === 'done') map[t.category].done++;
+    });
+    return Object.entries(map).map(([cat, v]) => ({
+      label: cat,
+      count: v.total,
+      progress: v.total > 0 ? v.done / v.total : 0,
+      color: CATEGORY_COLORS[cat] ?? P,
+    }));
+  }, [tasks]);
+
+  const motivText = progress >= 0.8
+    ? 'Almost done!'
+    : progress >= 0.5
+    ? 'Keep going!'
+    : total === 0
+    ? 'No tasks yet!'
+    : "Let's get started!";
+
+  return (
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 100 },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.greeting}>{getGreeting()}, {firstName} 👋</Text>
+          <Text style={styles.dateLine}>{todayLabel()}</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/settings/notifications')}>
+            <Bell size={18} color={TEXT2} strokeWidth={1.8} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.avatar} onPress={() => router.push('/profile')}>
+            <Text style={styles.avatarText}>{initials}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ── Progress Card ── */}
+      <View style={styles.progressCard}>
+        <View style={styles.progressLeft}>
+          <Text style={styles.progressLabel}>Your today's tasks</Text>
+          <Text style={styles.progressTitle}>{motivText}</Text>
+          <TouchableOpacity style={styles.progressBtn} onPress={() => router.navigate('/(tabs)/tasks')}>
+            <Text style={styles.progressBtnText}>View Tasks</Text>
+            <ChevronRight size={13} color={P} strokeWidth={2.5} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.progressRight}>
+          <Ring pct={progress} size={100} stroke={9} color="#fff" />
+          <View style={styles.progressPctWrap}>
+            <Text style={styles.progressPct}>{Math.round(progress * 100)}%</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ── In Progress ── */}
+      {inProg.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>In Progress</Text>
+            <TouchableOpacity onPress={() => router.navigate('/(tabs)/tasks')}>
+              <Text style={styles.seeAll}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+          >
+            {inProg.slice(0, 6).map((t) => {
+              const color = CATEGORY_COLORS[t.category] ?? P;
+              return (
+                <View key={t.id} style={[styles.inProgCard, { borderLeftColor: color }]}>
+                  <Text style={[styles.inProgCat, { color }]}>{t.category}</Text>
+                  <Text style={styles.inProgTitle} numberOfLines={2}>{t.title}</Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* ── Task Groups ── */}
+      {groups.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Task Groups</Text>
+            <TouchableOpacity onPress={() => router.navigate('/(tabs)/tasks')}>
+              <Text style={styles.seeAll}>See all</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.groupList}>
+            {groups.map((g) => (
+              <TouchableOpacity
+                key={g.label}
+                style={styles.groupItem}
+                activeOpacity={0.75}
+                onPress={() => router.navigate('/(tabs)/tasks')}
+              >
+                <View style={[styles.groupIconWrap, { backgroundColor: g.color + '20' }]}>
+                  <View style={[styles.groupDot, { backgroundColor: g.color }]} />
+                </View>
+                <View style={styles.groupInfo}>
+                  <Text style={styles.groupLabel}>{g.label}</Text>
+                  <Text style={styles.groupCount}>{g.count} Tasks</Text>
+                </View>
+                <Text style={[styles.groupPct, { color: g.color }]}>
+                  {Math.round(g.progress * 100)}%
+                </Text>
+                <ChevronRight size={14} color={TEXT3} strokeWidth={2} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* ── Quick Actions ── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <View style={styles.quickRow}>
+          <TouchableOpacity
+            style={[styles.quickCard, { backgroundColor: P_DIM, borderColor: P + '30' }]}
+            onPress={() => router.navigate('/(tabs)/focus')}
+            activeOpacity={0.8}
+          >
+            <Timer size={22} color={P} strokeWidth={1.8} />
+            <Text style={[styles.quickLabel, { color: P }]}>Focus</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickCard, { backgroundColor: 'rgba(74,222,128,0.1)', borderColor: GREEN + '30' }]}
+            onPress={() => router.navigate('/(tabs)/academic')}
+            activeOpacity={0.8}
+          >
+            <BookOpen size={22} color={GREEN} strokeWidth={1.8} />
+            <Text style={[styles.quickLabel, { color: GREEN }]}>Study</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickCard, { backgroundColor: 'rgba(251,146,60,0.1)', borderColor: ORANGE + '30' }]}
+            onPress={() => router.navigate('/(tabs)/notes')}
+            activeOpacity={0.8}
+          >
+            <FileText size={22} color={ORANGE} strokeWidth={1.8} />
+            <Text style={[styles.quickLabel, { color: ORANGE }]}>Notes</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickCard, { backgroundColor: 'rgba(167,139,250,0.1)', borderColor: '#A78BFA30' }]}
+            onPress={() => router.push('/ai')}
+            activeOpacity={0.8}
+          >
+            <Zap size={22} color="#A78BFA" strokeWidth={1.8} />
+            <Text style={[styles.quickLabel, { color: '#A78BFA' }]}>AI</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bg,
+  root: { flex: 1, backgroundColor: '#0a0a0a' },
+  content: { paddingHorizontal: 20, gap: 24 },
+
+  // Header
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  greeting: { fontSize: 22, fontWeight: '700', color: TEXT, letterSpacing: -0.3 },
+  dateLine: { fontSize: 13, color: TEXT2, marginTop: 2 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: CARD, borderWidth: 1, borderColor: BDR,
+    alignItems: 'center', justifyContent: 'center',
   },
-  scroll: {
-    flex: 1,
+  avatar: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: P, alignItems: 'center', justifyContent: 'center',
   },
-  content: {
-    paddingHorizontal: Layout.screenPaddingH,
-    gap: Layout.sectionGap,
-  },
-  section: {
-    gap: Layout.sectionGap,
-  },
-  headerActions: {
+  avatarText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+
+  // Progress card
+  progressCard: {
+    backgroundColor: P,
+    borderRadius: 20,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  searchBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-  },
-  searchIcon: {
-    color: Colors.accentPurpleLight,
-    fontSize: 16,
-  },
-  avatarBtn: {
-    borderRadius: 16,
     overflow: 'hidden',
   },
-  fabArea: {
+  progressLeft: { flex: 1, gap: 8 },
+  progressLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
+  progressTitle: { fontSize: 20, fontWeight: '700', color: '#fff', lineHeight: 26 },
+  progressBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#fff', borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start',
+  },
+  progressBtnText: { fontSize: 12, fontWeight: '700', color: P },
+  progressRight: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
+  progressPctWrap: {
     position: 'absolute',
-    right: 16,
-    alignItems: 'flex-end',
-    gap: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
-  fabMenu: {
-    gap: 8,
-    alignItems: 'flex-end',
-  },
-  fabMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: Colors.bgElevated,
+  progressPct: { fontSize: 20, fontWeight: '700', color: '#fff' },
+
+  // In Progress
+  section: { gap: 14 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: TEXT },
+  seeAll: { fontSize: 13, color: P, fontWeight: '500' },
+
+  inProgCard: {
+    backgroundColor: CARD,
+    borderRadius: 14,
+    padding: 14,
+    width: 140,
+    borderLeftWidth: 3,
+    gap: 6,
     borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderColor: BDR,
   },
-  fabMenuIcon: { color: Colors.accentPurpleLight, fontSize: 14 },
-  fabMenuText: { color: Colors.textPrimary, fontSize: 14, fontWeight: '600' },
-  fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: Colors.accentBlue,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.borderStrong,
-    elevation: 8,
-    shadowColor: Colors.accentBlueDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
+  inProgCat: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  inProgTitle: { fontSize: 13, fontWeight: '600', color: TEXT, lineHeight: 18 },
+
+  // Groups
+  groupList: {
+    backgroundColor: CARD, borderRadius: 16,
+    borderWidth: 1, borderColor: BDR, overflow: 'hidden',
   },
-  fabIcon: {
-    color: Colors.accentBlueDeeper,
-    fontSize: 24,
-    fontWeight: '700',
-    lineHeight: 26,
+  groupItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderBottomWidth: 1, borderBottomColor: BDR,
   },
+  groupIconWrap: {
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  groupDot: { width: 10, height: 10, borderRadius: 5 },
+  groupInfo: { flex: 1 },
+  groupLabel: { fontSize: 14, fontWeight: '600', color: TEXT },
+  groupCount: { fontSize: 12, color: TEXT2, marginTop: 1 },
+  groupPct: { fontSize: 14, fontWeight: '700' },
+
+  // Quick actions
+  quickRow: { flexDirection: 'row', gap: 10 },
+  quickCard: {
+    flex: 1, borderRadius: 14, borderWidth: 1,
+    paddingVertical: 16, alignItems: 'center', gap: 6,
+  },
+  quickLabel: { fontSize: 11, fontWeight: '600' },
 });

@@ -1,361 +1,283 @@
 import React from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet, Alert, ToastAndroid, Platform } from 'react-native';
+import {
+  ScrollView, View, Text, TouchableOpacity,
+  StyleSheet, Alert, ToastAndroid, Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Colors } from '../../src/constants/Colors';
-import { Typography } from '../../src/constants/Typography';
-import { Layout } from '../../src/constants/Spacing';
+import {
+  User, Bell, Settings, Timer, ChevronRight,
+  LogOut, Zap, FileText, Shield, HelpCircle,
+} from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useFocusStore } from '../../src/store/focusStore';
 
-const SETTINGS_SECTIONS = [
-  {
-    title: 'Account',
-    items: [
-      { icon: '◉', label: 'Profile Settings', sublabel: 'Name, photo, contact info', route: '/settings/profile' as const },
-      { icon: '⚡', label: 'Organization', sublabel: 'Student council & team', route: '/settings/profile' as const },
-      { icon: '🔔', label: 'Notifications', sublabel: 'Alerts & reminders', route: '/settings/notifications' as const },
-    ],
-  },
-  {
-    title: 'Preferences',
-    items: [
-      { icon: '◎', label: 'Focus Settings', sublabel: 'Default mode, auto-start', route: '/settings/focus' as const },
-      { icon: '◈', label: 'AI Assistant', sublabel: 'Briefing preferences, tone', route: null },
-      { icon: '☑', label: 'Task Defaults', sublabel: 'Priority, labels, views', route: null },
-    ],
-  },
-  {
-    title: 'App',
-    items: [
-      { icon: '◻', label: 'Appearance', sublabel: 'Dark mode (always on)', route: null },
-      { icon: '⇲', label: 'Data & Sync', sublabel: 'Backup, export, cloud', route: null },
-      { icon: '?', label: 'Help & Feedback', sublabel: 'Support, bug reports', route: null },
-    ],
-  },
-];
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const P      = '#7C5CFC';
+const P_DIM  = 'rgba(124,92,252,0.15)';
+const CARD   = '#13131F';
+const BDR    = 'rgba(255,255,255,0.07)';
+const TEXT   = '#FFFFFF';
+const TEXT2  = '#8B8BAA';
+const TEXT3  = '#3D3D5C';
+const RED    = '#F87171';
+const GREEN  = '#4ADE80';
 
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase();
+function getInitials(name: string) {
+  return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 
+// ── Settings row ──────────────────────────────────────────────────────────────
+function SettingRow({
+  Icon, iconColor = P, label, sublabel, onPress, last = false,
+}: {
+  Icon: any; iconColor?: string; label: string; sublabel?: string;
+  onPress?: () => void; last?: boolean;
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.settingRow, !last && styles.settingRowBorder]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.settingIcon, { backgroundColor: iconColor + '20' }]}>
+        <Icon size={16} color={iconColor} strokeWidth={1.8} />
+      </View>
+      <View style={styles.settingText}>
+        <Text style={styles.settingLabel}>{label}</Text>
+        {sublabel && <Text style={styles.settingSub}>{sublabel}</Text>}
+      </View>
+      <ChevronRight size={16} color={TEXT3} strokeWidth={1.8} />
+    </TouchableOpacity>
+  );
+}
+
+// ── Main screen ────────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { stats } = useFocusStore();
 
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          await logout();
-        },
-      },
-    ]);
-  };
-
   const initials = user?.full_name ? getInitials(user.full_name) : 'U';
 
-  const showComingSoon = (label: string) => {
+  const comingSoon = (label: string) => {
     if (Platform.OS === 'android') {
       ToastAndroid.show(`${label} — coming soon`, ToastAndroid.SHORT);
     } else {
-      Alert.alert(label, 'This feature is coming soon.');
+      Alert.alert(label, 'Coming soon.');
     }
   };
-  const focusHours = Math.round(stats.todayMinutes / 60 * 10) / 10;
+
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
+    ]);
+  };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.root}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + 24, paddingBottom: 32 },
+          { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Back button */}
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Profile</Text>
+        </View>
 
-        {/* Profile hero */}
-        <View style={styles.profileHero}>
-          <View style={styles.avatarLarge}>
-            <Text style={styles.avatarInitials}>{initials}</Text>
+        {/* ── Profile hero card ── */}
+        <View style={styles.heroCard}>
+          <View style={styles.avatarWrap}>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{user?.full_name || 'User'}</Text>
-            <Text style={styles.profileRole}>{user?.role || 'Student Leader'}</Text>
-            {user?.organization ? (
-              <Text style={styles.profileOrg}>{user.organization}</Text>
-            ) : null}
-            <View style={styles.profileBadge}>
-              <Text style={styles.profileBadgeText}>PARAPO PRO</Text>
-            </View>
+          <View style={styles.heroInfo}>
+            <Text style={styles.heroName}>{user?.full_name || 'User'}</Text>
+            <Text style={styles.heroRole}>{user?.role || 'Student'}</Text>
+            {user?.organization && (
+              <Text style={styles.heroOrg}>{user.organization}</Text>
+            )}
+          </View>
+          <View style={styles.heroBadge}>
+            <Text style={styles.heroBadgeText}>PRO</Text>
           </View>
         </View>
 
-        {/* Stats row */}
-        <View style={styles.statsRow}>
+        {/* ── Stats row ── */}
+        <View style={styles.statsCard}>
           {[
-            { label: 'Focus Today', value: `${stats.todayMinutes}m` },
-            { label: 'This Week', value: `${stats.weekSessions} sessions` },
-            { label: 'Streak', value: `${stats.currentStreak}d` },
-          ].map((stat, i) => (
-            <View
-              key={stat.label}
-              style={[styles.statItem, i < 2 && styles.statItemBorder]}
-            >
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
+            { label: 'Focus Today', value: `${stats.todayMinutes}m`, color: P },
+            { label: 'Sessions', value: `${stats.weekSessions}`, color: '#A78BFA' },
+            { label: 'Streak', value: `${stats.currentStreak}d`, color: GREEN },
+          ].map((s, i) => (
+            <React.Fragment key={s.label}>
+              {i > 0 && <View style={styles.statsDivider} />}
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
+                <Text style={styles.statLabel}>{s.label}</Text>
+              </View>
+            </React.Fragment>
           ))}
         </View>
 
-        {/* Quick links */}
-        <View style={styles.quickLinks}>
-          <TouchableOpacity style={styles.quickLink} onPress={() => router.push('/ai')}>
-            <Text style={styles.quickLinkIcon}>✦</Text>
-            <Text style={styles.quickLinkText}>PARAPO AI</Text>
-            <Text style={styles.quickLinkChevron}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.quickLink, styles.quickLinkBorder]} onPress={() => router.push('/notes')}>
-            <Text style={styles.quickLinkIcon}>✎</Text>
-            <Text style={styles.quickLinkText}>Notes</Text>
-            <Text style={styles.quickLinkChevron}>›</Text>
-          </TouchableOpacity>
+        {/* ── Account section ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>ACCOUNT</Text>
+          <View style={styles.settingCard}>
+            <SettingRow
+              Icon={User} label="Profile Settings"
+              sublabel="Name, photo, contact"
+              onPress={() => router.push('/settings/profile')}
+            />
+            <SettingRow
+              Icon={Bell} label="Notifications"
+              sublabel="Alerts & reminders"
+              onPress={() => router.push('/settings/notifications')}
+            />
+            <SettingRow
+              Icon={Shield} iconColor="#A78BFA"
+              label="Privacy" sublabel="Data & permissions"
+              onPress={() => comingSoon('Privacy')}
+              last
+            />
+          </View>
         </View>
 
-        {/* Settings sections */}
-        {SETTINGS_SECTIONS.map((section) => (
-          <View key={section.title} style={styles.settingsSection}>
-            <Text style={styles.settingsSectionTitle}>{section.title}</Text>
-            <View style={styles.settingsList}>
-              {section.items.map((item, i) => (
-                <TouchableOpacity
-                  key={item.label}
-                  style={[
-                    styles.settingsItem,
-                    i < section.items.length - 1 && styles.settingsItemBorder,
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => item.route ? router.push(item.route) : showComingSoon(item.label)}
-                >
-                  <View style={styles.settingsIcon}>
-                    <Text style={styles.settingsIconText}>{item.icon}</Text>
-                  </View>
-                  <View style={styles.settingsText}>
-                    <Text style={styles.settingsLabel}>{item.label}</Text>
-                    <Text style={styles.settingsSublabel}>{item.sublabel}</Text>
-                  </View>
-                  <Text style={styles.settingsChevron}>›</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+        {/* ── Preferences section ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>PREFERENCES</Text>
+          <View style={styles.settingCard}>
+            <SettingRow
+              Icon={Timer} label="Focus Settings"
+              sublabel="Default mode, durations"
+              onPress={() => router.push('/settings/focus')}
+            />
+            <SettingRow
+              Icon={Zap} iconColor="#FBBF24"
+              label="AI Assistant"
+              sublabel="Briefing preferences"
+              onPress={() => router.push('/ai')}
+            />
+            <SettingRow
+              Icon={Settings} iconColor={GREEN}
+              label="App Preferences"
+              sublabel="Theme, language"
+              onPress={() => comingSoon('App Preferences')}
+              last
+            />
           </View>
-        ))}
+        </View>
 
-        {/* Sign out */}
-        <TouchableOpacity style={styles.signOutBtn} onPress={handleLogout} activeOpacity={0.75}>
+        {/* ── Quick links ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>QUICK LINKS</Text>
+          <View style={styles.settingCard}>
+            <SettingRow
+              Icon={Zap} iconColor={P}
+              label="PARAPO AI"
+              sublabel="Your intelligent assistant"
+              onPress={() => router.push('/ai')}
+            />
+            <SettingRow
+              Icon={FileText} iconColor="#FB923C"
+              label="Notes"
+              sublabel="All your notes"
+              onPress={() => router.navigate('/(tabs)/notes')}
+              last
+            />
+          </View>
+        </View>
+
+        {/* ── Help section ── */}
+        <View style={styles.section}>
+          <View style={styles.settingCard}>
+            <SettingRow
+              Icon={HelpCircle} iconColor={TEXT2}
+              label="Help & Feedback"
+              sublabel="Support, bug reports"
+              onPress={() => comingSoon('Help')}
+              last
+            />
+          </View>
+        </View>
+
+        {/* ── Sign out ── */}
+        <TouchableOpacity style={styles.signOutBtn} onPress={handleLogout} activeOpacity={0.8}>
+          <LogOut size={16} color={RED} strokeWidth={2} />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>PARAPO v1.0.0 · {user?.email || ''}</Text>
+        <Text style={styles.version}>PARAPO v1.0.0{user?.email ? ` · ${user.email}` : ''}</Text>
       </ScrollView>
     </View>
   );
 }
 
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
-  content: { paddingHorizontal: Layout.screenPaddingH, gap: 20 },
+  root: { flex: 1, backgroundColor: '#0a0a0a' },
+  content: { paddingHorizontal: 20, gap: 20 },
 
-  backBtn: { alignSelf: 'flex-start', padding: 4 },
-  backText: { ...Typography.bodyMedium, color: Colors.accentBlue },
+  header: {},
+  headerTitle: { fontSize: 22, fontWeight: '700', color: TEXT, letterSpacing: -0.3 },
 
-  profileHero: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 20,
+  // Hero card
+  heroCard: {
+    backgroundColor: CARD, borderRadius: 20, borderWidth: 1, borderColor: BDR,
+    padding: 20, flexDirection: 'row', alignItems: 'center', gap: 14,
   },
-  avatarLarge: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
-    backgroundColor: Colors.accentBlueDark,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarWrap: {
+    width: 64, height: 64, borderRadius: 20,
+    backgroundColor: P, alignItems: 'center', justifyContent: 'center',
   },
-  avatarInitials: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: Colors.accentBlueDeeper,
-    letterSpacing: 1,
+  avatarText: { fontSize: 22, fontWeight: '700', color: '#fff' },
+  heroInfo: { flex: 1, gap: 2 },
+  heroName: { fontSize: 18, fontWeight: '700', color: TEXT },
+  heroRole: { fontSize: 13, color: TEXT2 },
+  heroOrg: { fontSize: 11, color: TEXT3, marginTop: 1 },
+  heroBadge: {
+    backgroundColor: P_DIM, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: P + '40',
   },
-  profileInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  profileName: {
-    ...Typography.h2,
-    color: Colors.textPrimary,
-    fontWeight: '700',
-  },
-  profileRole: {
-    ...Typography.bodySmall,
-    color: Colors.textMuted,
-  },
-  profileOrg: {
-    ...Typography.labelSmall,
-    color: Colors.textDisabled,
-  },
-  profileBadge: {
-    backgroundColor: Colors.overlayBlue,
-    borderWidth: 1,
-    borderColor: Colors.overlayBlueStrong,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  profileBadgeText: {
-    ...Typography.labelSmall,
-    color: Colors.accentBlue,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
+  heroBadgeText: { fontSize: 10, fontWeight: '800', color: P, letterSpacing: 1 },
 
-  statsRow: {
-    flexDirection: 'row',
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    overflow: 'hidden',
+  // Stats
+  statsCard: {
+    backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BDR,
+    flexDirection: 'row', overflow: 'hidden',
   },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  statItemBorder: {
-    borderRightWidth: 1,
-    borderRightColor: Colors.border,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.accentBlue,
-  },
-  statLabel: {
-    ...Typography.labelSmall,
-    color: Colors.textMuted,
-    marginTop: 2,
-  },
+  statItem: { flex: 1, alignItems: 'center', paddingVertical: 18 },
+  statsDivider: { width: 1, backgroundColor: BDR },
+  statValue: { fontSize: 20, fontWeight: '700' },
+  statLabel: { fontSize: 11, color: TEXT2, marginTop: 3 },
 
-  quickLinks: {
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    overflow: 'hidden',
+  // Sections
+  section: { gap: 8 },
+  sectionTitle: { fontSize: 11, fontWeight: '700', color: TEXT3, letterSpacing: 1.2, paddingHorizontal: 4 },
+  settingCard: {
+    backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BDR, overflow: 'hidden',
   },
-  quickLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
+  settingRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
   },
-  quickLinkBorder: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderSubtle,
-  },
-  quickLinkIcon: { color: Colors.accentPurpleLight, fontSize: 16 },
-  quickLinkText: { ...Typography.labelLarge, color: Colors.textPrimary, fontWeight: '500', flex: 1 },
-  quickLinkChevron: { color: Colors.textMuted, fontSize: 18 },
+  settingRowBorder: { borderBottomWidth: 1, borderBottomColor: BDR },
+  settingIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  settingText: { flex: 1 },
+  settingLabel: { fontSize: 14, fontWeight: '600', color: TEXT },
+  settingSub: { fontSize: 12, color: TEXT2, marginTop: 1 },
 
-  settingsSection: { gap: 8 },
-  settingsSectionTitle: {
-    ...Typography.labelUppercase,
-    color: Colors.textMuted,
-    letterSpacing: 1.2,
-    paddingHorizontal: 4,
-  },
-  settingsList: {
-    backgroundColor: Colors.bgElevated,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-  },
-  settingsItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderSubtle,
-  },
-  settingsIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: Colors.bgSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settingsIconText: { fontSize: 14, color: Colors.textSecondary },
-  settingsText: { flex: 1 },
-  settingsLabel: {
-    ...Typography.labelLarge,
-    color: Colors.textPrimary,
-    fontWeight: '500',
-  },
-  settingsSublabel: {
-    ...Typography.labelSmall,
-    color: Colors.textMuted,
-    marginTop: 1,
-  },
-  settingsChevron: { color: Colors.textMuted, fontSize: 18 },
-
+  // Sign out
   signOutBtn: {
-    backgroundColor: Colors.overlayRed,
-    borderWidth: 1,
-    borderColor: Colors.overlayRedStrong,
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: RED + '15', borderWidth: 1, borderColor: RED + '30',
+    borderRadius: 14, padding: 14,
   },
-  signOutText: {
-    ...Typography.labelLarge,
-    color: Colors.accentRed,
-    fontWeight: '600',
-  },
+  signOutText: { fontSize: 15, fontWeight: '700', color: RED },
 
-  version: {
-    ...Typography.labelSmall,
-    color: Colors.textDisabled,
-    textAlign: 'center',
-  },
+  version: { fontSize: 11, color: TEXT3, textAlign: 'center' },
 });
